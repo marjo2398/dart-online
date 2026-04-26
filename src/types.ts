@@ -18,6 +18,8 @@ export interface Game {
   winner_id: number | null;
   legs_to_win: number;
   starting_score: number;
+  player1_name?: string;
+  player2_name?: string;
 }
 
 export interface Throw {
