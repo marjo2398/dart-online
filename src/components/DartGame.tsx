@@ -47,6 +47,9 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [pendingCheckoutScore, setPendingCheckoutScore] = useState<number | null>(null);
 
+  // Modal for double check
+  const [pendingDoubleCheckScore, setPendingDoubleCheckScore] = useState<number | null>(null);
+
   // Voice recognition state
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -276,8 +279,7 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
       setRefereeMessage('Bust! Za dużo punktów.');
     } else if (newScore === 0) {
       // Show modal instead of finishing immediately
-      setPendingCheckoutScore(score);
-      setShowCheckoutModal(true);
+      setPendingDoubleCheckScore(score);
       return; // Stop here, wait for modal
     } else {
       setRefereeMessage(getRefereeComment(score, newScore));
@@ -287,10 +289,23 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
     submitThrow(score, actualScore, isBust, false, 3);
   };
 
+  const handleDoubleCheckResponse = (isDouble: boolean) => {
+    const score = pendingDoubleCheckScore!;
+    setPendingDoubleCheckScore(null);
+
+    if (isDouble) {
+      setPendingCheckoutScore(score);
+      setShowCheckoutModal(true);
+    } else {
+      setRefereeMessage('Bust! Brak podwójnej (Double).');
+      submitThrow(score, 0, true, false, 3);
+    }
+  };
+
   const submitThrow = (score: number, actualScore: number, isBust: boolean, isLegWon: boolean, dartsUsed: number) => {
     const currentPlayerId = currentTurn === 1 ? player1.id : player2.id;
     const currentScore = currentTurn === 1 ? p1Score : p2Score;
-    let newScore = currentScore - score;
+    let newScore = isBust ? currentScore : currentScore - score;
 
     // Update stats
     if (currentTurn === 1) {
@@ -486,6 +501,29 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans p-4 md:p-8 flex flex-col">
+      {/* Double Check Modal */}
+      {pendingDoubleCheckScore !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col items-center">
+            <h2 className="text-2xl font-black mb-6 text-center text-white">Czy ostatnia lotka trafiła w podwójne pole (Double)?</h2>
+            <div className="flex gap-4 w-full justify-center">
+              <button
+                onClick={() => handleDoubleCheckResponse(true)}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xl py-4 rounded-2xl transition-all"
+              >
+                Tak
+              </button>
+              <button
+                onClick={() => handleDoubleCheckResponse(false)}
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xl py-4 rounded-2xl transition-all"
+              >
+                Nie
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Checkout Modal */}
       {showCheckoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
