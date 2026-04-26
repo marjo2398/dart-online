@@ -9,6 +9,8 @@ export interface Player {
   count_140?: number;
   count_100?: number;
   hi_score?: number;
+  highest_checkout: number;
+  best_leg_darts: number;
 }
 
 export interface Game {
