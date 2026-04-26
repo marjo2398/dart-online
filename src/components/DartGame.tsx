@@ -43,6 +43,10 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
   
   const [voiceEnabled, setVoiceEnabled] = useState(true);
 
+  // Modal for finishing leg
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [pendingCheckoutScore, setPendingCheckoutScore] = useState<number | null>(null);
+
   // Voice recognition state
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -271,28 +275,38 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
       newScore = currentScore; // Reset score
       setRefereeMessage('Bust! Za dużo punktów.');
     } else if (newScore === 0) {
-      isLegWon = true;
-      setRefereeMessage(`Koniec lega! Wygrywa ${currentTurn === 1 ? player1.name : player2.name}`);
+      // Show modal instead of finishing immediately
+      setPendingCheckoutScore(score);
+      setShowCheckoutModal(true);
+      return; // Stop here, wait for modal
     } else {
       setRefereeMessage(getRefereeComment(score, newScore));
     }
 
-    // Update stats
     const actualScore = isBust ? 0 : score;
+    submitThrow(score, actualScore, isBust, false, 3);
+  };
+
+  const submitThrow = (score: number, actualScore: number, isBust: boolean, isLegWon: boolean, dartsUsed: number) => {
+    const currentPlayerId = currentTurn === 1 ? player1.id : player2.id;
+    const currentScore = currentTurn === 1 ? p1Score : p2Score;
+    let newScore = currentScore - score;
+
+    // Update stats
     if (currentTurn === 1) {
       setP1Stats(prev => ({
         ...prev,
         matchScore: prev.matchScore + actualScore,
-        matchDarts: prev.matchDarts + 3,
-        legDarts: prev.legDarts + 3,
+        matchDarts: prev.matchDarts + dartsUsed,
+        legDarts: prev.legDarts + dartsUsed,
         hiScore: Math.max(prev.hiScore, actualScore)
       }));
     } else {
       setP2Stats(prev => ({
         ...prev,
         matchScore: prev.matchScore + actualScore,
-        matchDarts: prev.matchDarts + 3,
-        legDarts: prev.legDarts + 3,
+        matchDarts: prev.matchDarts + dartsUsed,
+        legDarts: prev.legDarts + dartsUsed,
         hiScore: Math.max(prev.hiScore, actualScore)
       }));
     }
@@ -302,12 +316,12 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
       game_id: gameId,
       player_id: currentPlayerId,
       score: actualScore, // If bust, actual scored points is 0
-      darts_used: 3 // Simplification: assume 3 darts per turn
+      darts_used: dartsUsed
     };
 
     if (isLegWon) {
       payload.checkout = score;
-      payload.leg_darts = currentTurn === 1 ? p1Stats.legDarts + 3 : p2Stats.legDarts + 3;
+      payload.leg_darts = currentTurn === 1 ? p1Stats.legDarts + dartsUsed : p2Stats.legDarts + dartsUsed;
     }
 
     fetch('/api/throws', {
@@ -326,6 +340,7 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
     }
 
     if (isLegWon) {
+      setRefereeMessage(`Koniec lega! Wygrywa ${currentTurn === 1 ? player1.name : player2.name}`);
       handleLegWin(currentTurn);
     } else {
       setCurrentTurn(currentTurn === 1 ? 2 : 1);
@@ -335,6 +350,14 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
     setTimeout(() => {
       inputRef.current?.focus();
     }, 10);
+  };
+
+  const handleCheckoutSubmit = (dartsUsed: number) => {
+    if (pendingCheckoutScore !== null) {
+      submitThrow(pendingCheckoutScore, pendingCheckoutScore, false, true, dartsUsed);
+    }
+    setShowCheckoutModal(false);
+    setPendingCheckoutScore(null);
   };
 
   const handleLegWin = (winnerTurn: 1 | 2) => {
@@ -463,6 +486,28 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans p-4 md:p-8 flex flex-col">
+      {/* Checkout Modal */}
+      {showCheckoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 max-w-md w-full shadow-2xl flex flex-col items-center">
+            <h2 className="text-3xl font-black mb-2 text-center text-emerald-500">Koniec Lega!</h2>
+            <p className="text-zinc-400 mb-8 text-center text-lg">Ile lotek potrzebowałeś na to trafienie?</p>
+
+            <div className="flex gap-4 w-full justify-center">
+              {[1, 2, 3].map((num) => (
+                <button
+                  key={num}
+                  onClick={() => handleCheckoutSubmit(num)}
+                  className="flex-1 bg-zinc-800 hover:bg-emerald-600 border border-zinc-700 hover:border-emerald-500 text-white font-bold text-2xl py-6 rounded-2xl transition-all hover:scale-105"
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header / Referee */}
       <div className="max-w-5xl mx-auto w-full mb-8 text-center relative">
         <div className="absolute right-0 top-0">

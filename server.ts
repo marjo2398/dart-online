@@ -35,6 +35,29 @@ async function startServer() {
     }
   });
 
+  app.delete("/api/players/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Delete player throws
+      db.prepare("DELETE FROM throws WHERE player_id = ?").run(id);
+
+      // Find and handle games involving the player
+      const games = db.prepare("SELECT id FROM games WHERE player1_id = ? OR player2_id = ?").all(id, id) as any[];
+      for (const game of games) {
+        // Delete all throws for this game (even opponent's) since the game is being deleted
+        db.prepare("DELETE FROM throws WHERE game_id = ?").run(game.id);
+        db.prepare("DELETE FROM games WHERE id = ?").run(game.id);
+      }
+
+      db.prepare("DELETE FROM players WHERE id = ?").run(id);
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete player" });
+    }
+  });
+
   app.post("/api/games", (req, res) => {
     try {
       const { player1_id, player2_id, legs_to_win, starting_score } = req.body;
@@ -95,6 +118,20 @@ async function startServer() {
       res.json({ success: true, undoneThrow: lastThrow });
     } catch (error) {
       res.status(500).json({ error: "Failed to undo throw" });
+    }
+  });
+
+  app.delete("/api/games/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // We must delete throws first to maintain referential integrity
+      db.prepare("DELETE FROM throws WHERE game_id = ?").run(id);
+      db.prepare("DELETE FROM games WHERE id = ?").run(id);
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete game" });
     }
   });
 

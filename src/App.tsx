@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import DartGame from './components/DartGame';
 import { Player, Game, Throw } from './types';
-import { Trophy, Users, PlusCircle, Play, RotateCcw } from 'lucide-react';
+import { Trophy, Users, PlusCircle, Play, RotateCcw, Trash2 } from 'lucide-react';
 
 export default function App() {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -46,6 +46,17 @@ export default function App() {
       fetchPlayers();
     } catch (error) {
       console.error('Failed to add player', error);
+    }
+  };
+
+  const handleDeletePlayer = async (id: number) => {
+    if (!confirm('Czy na pewno chcesz usunąć tego gracza? Jego statystyki, gry w których brał udział oraz wszystkie rzuty zostaną trwale usunięte.')) return;
+    try {
+      await fetch(`/api/players/${id}`, { method: 'DELETE' });
+      fetchPlayers();
+      fetchActiveGames(); // Some games might have been deleted
+    } catch (error) {
+      console.error('Failed to delete player', error);
     }
   };
 
@@ -107,6 +118,16 @@ export default function App() {
     setIsResumedGame(false);
     fetchPlayers(); // Refresh stats
     fetchActiveGames();
+  };
+
+  const handleDeleteGame = async (id: number) => {
+    if (!confirm('Czy na pewno chcesz usunąć tę grę? Zapisane postępy znikną.')) return;
+    try {
+      await fetch(`/api/games/${id}`, { method: 'DELETE' });
+      fetchActiveGames();
+    } catch (error) {
+      console.error('Failed to delete game', error);
+    }
   };
 
   if (gameStarted && gameId) {
@@ -209,12 +230,21 @@ export default function App() {
                         <p className="font-bold">{game.player1_name} vs {game.player2_name}</p>
                         <p className="text-sm text-zinc-500">BO{game.legs_to_win * 2 - 1} • Od {game.starting_score || 501}</p>
                       </div>
-                      <button
-                        onClick={() => handleResumeGame(game)}
-                        className="bg-emerald-600/20 text-emerald-500 hover:bg-emerald-600 hover:text-white px-4 py-2 rounded-lg transition-colors font-medium text-sm"
-                      >
-                        Wznów
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleResumeGame(game)}
+                          className="bg-emerald-600/20 text-emerald-500 hover:bg-emerald-600 hover:text-white px-4 py-2 rounded-lg transition-colors font-medium text-sm"
+                        >
+                          Wznów
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGame(game.id)}
+                          className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white p-2 rounded-lg transition-colors"
+                          title="Usuń grę"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -250,14 +280,21 @@ export default function App() {
                 <p className="text-zinc-500 text-center py-4">Brak graczy. Dodaj pierwszego!</p>
               ) : (
                 players.map(p => (
-                  <div key={p.id} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex flex-col gap-3">
-                    <div className="flex justify-between items-center">
+                  <div key={p.id} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex flex-col gap-3 group relative">
+                    <button
+                      onClick={() => handleDeletePlayer(p.id)}
+                      className="absolute top-2 right-2 p-2 bg-red-500/10 text-red-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+                      title="Usuń gracza"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <div className="flex justify-between items-center pr-10">
                       <span className="font-bold text-lg">{p.name}</span>
                       <div className="text-sm font-mono text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded">
                         Avg: {p.total_darts_thrown > 0 ? ((p.total_points / p.total_darts_thrown) * 3).toFixed(1) : '-'}
                       </div>
                     </div>
-                    <div className="grid grid-cols-6 gap-2 text-xs text-zinc-400 text-center bg-zinc-900 p-2 rounded-lg">
+                    <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 text-xs text-zinc-400 text-center bg-zinc-900 p-2 rounded-lg">
                       <div>
                         <div className="text-zinc-500 mb-1">W/L</div>
                         <div className="text-white font-medium">{p.games_won} / {p.games_played}</div>
@@ -269,6 +306,14 @@ export default function App() {
                       <div>
                         <div className="text-zinc-500 mb-1">180s</div>
                         <div className="text-white font-medium">{p.count_180 || 0}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 mb-1">140+</div>
+                        <div className="text-white font-medium">{p.count_140 || 0}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 mb-1">100+</div>
+                        <div className="text-white font-medium">{p.count_100 || 0}</div>
                       </div>
                       <div>
                         <div className="text-zinc-500 mb-1">Hi-Score</div>
