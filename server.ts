@@ -48,12 +48,27 @@ async function startServer() {
 
   app.post("/api/throws", (req, res) => {
     try {
-      const { game_id, player_id, score, darts_used } = req.body;
+      const { game_id, player_id, score, darts_used, checkout, leg_darts } = req.body;
       const info = db.prepare("INSERT INTO throws (game_id, player_id, score, darts_used) VALUES (?, ?, ?, ?)").run(game_id, player_id, score, darts_used);
       
-      // Update player stats
+      // Update basic player stats
       db.prepare("UPDATE players SET total_points = total_points + ?, total_darts_thrown = total_darts_thrown + ? WHERE id = ?").run(score, darts_used, player_id);
       
+      // Update advanced stats if provided
+      if (checkout !== undefined) {
+        const player = db.prepare("SELECT highest_checkout, best_leg_darts FROM players WHERE id = ?").get(player_id) as any;
+        if (player) {
+          if (checkout > player.highest_checkout) {
+            db.prepare("UPDATE players SET highest_checkout = ? WHERE id = ?").run(checkout, player_id);
+          }
+          if (leg_darts !== undefined && leg_darts > 0) {
+            if (player.best_leg_darts === 0 || leg_darts < player.best_leg_darts) {
+              db.prepare("UPDATE players SET best_leg_darts = ? WHERE id = ?").run(leg_darts, player_id);
+            }
+          }
+        }
+      }
+
       res.json({ id: info.lastInsertRowid });
     } catch (error) {
       res.status(500).json({ error: "Failed to record throw" });

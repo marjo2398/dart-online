@@ -13,6 +13,8 @@ db.exec(`
     games_won INTEGER DEFAULT 0,
     total_points INTEGER DEFAULT 0,
     total_darts_thrown INTEGER DEFAULT 0,
+    highest_checkout INTEGER DEFAULT 0,
+    best_leg_darts INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -46,4 +48,11 @@ try {
   db.exec("ALTER TABLE games ADD COLUMN starting_score INTEGER DEFAULT 501;");
 } catch (e) {
   // Column likely already exists
+}
+
+try {
+  db.exec("ALTER TABLE players ADD COLUMN highest_checkout INTEGER DEFAULT 0;");
+  db.exec("ALTER TABLE players ADD COLUMN best_leg_darts INTEGER DEFAULT 0;");
+} catch (e) {
+  // Columns likely already exist
 }

@@ -46,6 +46,7 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
   // Voice recognition state
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialThrows.length > 0) {
@@ -297,15 +298,22 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
     }
 
     // Save throw to DB (async, don't block UI)
+    const payload: any = {
+      game_id: gameId,
+      player_id: currentPlayerId,
+      score: actualScore, // If bust, actual scored points is 0
+      darts_used: 3 // Simplification: assume 3 darts per turn
+    };
+
+    if (isLegWon) {
+      payload.checkout = score;
+      payload.leg_darts = currentTurn === 1 ? p1Stats.legDarts + 3 : p2Stats.legDarts + 3;
+    }
+
     fetch('/api/throws', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        game_id: gameId,
-        player_id: currentPlayerId,
-        score: actualScore, // If bust, actual scored points is 0
-        darts_used: 3 // Simplification: assume 3 darts per turn
-      })
+      body: JSON.stringify(payload)
     }).catch(console.error);
 
     // Update state
@@ -324,6 +332,9 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
     }
     
     setInputValue('');
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 10);
   };
 
   const handleLegWin = (winnerTurn: 1 | 2) => {
@@ -413,6 +424,10 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
 
       setHistory(prev => prev.slice(0, -1));
       setRefereeMessage('Cofnięto ostatni rzut.');
+
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
     } catch (error) {
       console.error(error);
       setRefereeMessage('Błąd cofania rzutu.');
@@ -553,6 +568,7 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
       <div className="max-w-2xl mx-auto w-full mt-8">
         <form onSubmit={handleSubmit} className="flex gap-4">
           <input
+            ref={inputRef}
             type="number"
             min="0"
             max="180"

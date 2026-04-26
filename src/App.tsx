@@ -257,22 +257,30 @@ export default function App() {
                         Avg: {p.total_darts_thrown > 0 ? ((p.total_points / p.total_darts_thrown) * 3).toFixed(1) : '-'}
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 text-xs text-zinc-400 text-center bg-zinc-900 p-2 rounded-lg">
+                    <div className="grid grid-cols-6 gap-2 text-xs text-zinc-400 text-center bg-zinc-900 p-2 rounded-lg">
                       <div>
                         <div className="text-zinc-500 mb-1">W/L</div>
                         <div className="text-white font-medium">{p.games_won} / {p.games_played}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 mb-1">Win %</div>
+                        <div className="text-white font-medium">{p.games_played > 0 ? ((p.games_won / p.games_played) * 100).toFixed(0) : 0}%</div>
                       </div>
                       <div>
                         <div className="text-zinc-500 mb-1">180s</div>
                         <div className="text-white font-medium">{p.count_180 || 0}</div>
                       </div>
                       <div>
-                        <div className="text-zinc-500 mb-1">140+</div>
-                        <div className="text-white font-medium">{p.count_140 || 0}</div>
-                      </div>
-                      <div>
                         <div className="text-zinc-500 mb-1">Hi-Score</div>
                         <div className="text-white font-medium">{p.hi_score || 0}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 mb-1">Hi-Check</div>
+                        <div className="text-white font-medium">{p.highest_checkout || 0}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 mb-1">Best Leg</div>
+                        <div className="text-white font-medium">{p.best_leg_darts || '-'}</div>
                       </div>
                     </div>
                   </div>
