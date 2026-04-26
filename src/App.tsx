@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import DartGame from './components/DartGame';
-import { Player } from './types';
-import { Trophy, Users, PlusCircle, Play } from 'lucide-react';
+import { Player, Game, Throw } from './types';
+import { Trophy, Users, PlusCircle, Play, RotateCcw } from 'lucide-react';
 
 export default function App() {
   const [players, setPlayers] = useState<Player[]>([]);
+  const [activeGames, setActiveGames] = useState<Game[]>([]);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [player1Id, setPlayer1Id] = useState<number | ''>('');
   const [player2Id, setPlayer2Id] = useState<number | ''>('');
@@ -12,9 +13,14 @@ export default function App() {
   const [startingScore, setStartingScore] = useState<number>(501);
   const [gameStarted, setGameStarted] = useState(false);
   const [gameId, setGameId] = useState<number | null>(null);
+  const [initialThrows, setInitialThrows] = useState<Throw[]>([]);
+  const [resumedGameStartingScore, setResumedGameStartingScore] = useState<number>(501);
+  const [resumedGameLegsToWin, setResumedGameLegsToWin] = useState<number>(3);
+  const [isResumedGame, setIsResumedGame] = useState(false);
 
   useEffect(() => {
     fetchPlayers();
+    fetchActiveGames();
   }, []);
 
   const fetchPlayers = async () => {
@@ -67,17 +73,47 @@ export default function App() {
     }
   };
 
+  const fetchActiveGames = async () => {
+    try {
+      const res = await fetch('/api/games/active');
+      const data = await res.json();
+      setActiveGames(data);
+    } catch (error) {
+      console.error('Failed to fetch active games', error);
+    }
+  };
+
+  const handleResumeGame = async (game: Game) => {
+    try {
+      const res = await fetch(`/api/games/${game.id}`);
+      const data = await res.json();
+      setPlayer1Id(game.player1_id);
+      setPlayer2Id(game.player2_id);
+      setResumedGameLegsToWin(game.legs_to_win);
+      setResumedGameStartingScore(game.starting_score || 501);
+      setInitialThrows(data.throws || []);
+      setGameId(game.id);
+      setIsResumedGame(true);
+      setGameStarted(true);
+    } catch (error) {
+      console.error('Failed to resume game', error);
+    }
+  };
+
   const handleGameEnd = () => {
     setGameStarted(false);
     setGameId(null);
+    setInitialThrows([]);
+    setIsResumedGame(false);
     fetchPlayers(); // Refresh stats
+    fetchActiveGames();
   };
 
   if (gameStarted && gameId) {
     const p1 = players.find(p => p.id === player1Id);
     const p2 = players.find(p => p.id === player2Id);
     if (p1 && p2) {
-      return <DartGame gameId={gameId} player1={p1} player2={p2} legsToWin={legsToWin} startingScore={startingScore} onGameEnd={handleGameEnd} />;
+      return <DartGame gameId={gameId} player1={p1} player2={p2} legsToWin={isResumedGame ? resumedGameLegsToWin : legsToWin} startingScore={isResumedGame ? resumedGameStartingScore : startingScore} initialThrows={initialThrows} onGameEnd={handleGameEnd} />;
     }
   }
 
@@ -159,6 +195,31 @@ export default function App() {
                 Rozpocznij Mecz
               </button>
             </div>
+
+            {activeGames.length > 0 && (
+              <div className="mt-8">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <RotateCcw className="w-5 h-5 text-emerald-500" />
+                  Wznów Grę
+                </h3>
+                <div className="space-y-3">
+                  {activeGames.map(game => (
+                    <div key={game.id} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold">{game.player1_name} vs {game.player2_name}</p>
+                        <p className="text-sm text-zinc-500">BO{game.legs_to_win * 2 - 1} • Od {game.starting_score || 501}</p>
+                      </div>
+                      <button
+                        onClick={() => handleResumeGame(game)}
+                        className="bg-emerald-600/20 text-emerald-500 hover:bg-emerald-600 hover:text-white px-4 py-2 rounded-lg transition-colors font-medium text-sm"
+                      >
+                        Wznów
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Players Management */}

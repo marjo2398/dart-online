@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Player } from '../types';
+import { Player, Throw } from '../types';
 import { Mic, MicOff, Undo2, ArrowRight, Trophy, Volume2, VolumeX } from 'lucide-react';
 
 interface DartGameProps {
@@ -8,6 +8,7 @@ interface DartGameProps {
   player2: Player;
   legsToWin: number;
   startingScore: number;
+  initialThrows?: Throw[];
   onGameEnd: () => void;
 }
 
@@ -27,7 +28,7 @@ interface PlayerMatchStats {
   legDarts: number;
 }
 
-export default function DartGame({ gameId, player1, player2, legsToWin, startingScore, onGameEnd }: DartGameProps) {
+export default function DartGame({ gameId, player1, player2, legsToWin, startingScore, initialThrows = [], onGameEnd }: DartGameProps) {
   const [p1Score, setP1Score] = useState(startingScore);
   const [p2Score, setP2Score] = useState(startingScore);
   const [p1Legs, setP1Legs] = useState(0);
@@ -45,6 +46,98 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
   // Voice recognition state
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (initialThrows.length > 0) {
+      reconstructGameState(initialThrows);
+    }
+  }, [initialThrows]);
+
+  const reconstructGameState = (throws: Throw[]) => {
+    let p1LegsCurrent = 0;
+    let p2LegsCurrent = 0;
+    let p1ScoreCurrent = startingScore;
+    let p2ScoreCurrent = startingScore;
+    let turnCurrent: 1 | 2 = 1;
+    let p1MatchStats = { matchScore: 0, matchDarts: 0, wonLegsScore: 0, wonLegsDarts: 0, hiScore: 0, legDarts: 0 };
+    let p2MatchStats = { matchScore: 0, matchDarts: 0, wonLegsScore: 0, wonLegsDarts: 0, hiScore: 0, legDarts: 0 };
+    let currentHistory: ThrowRecord[] = [];
+
+    throws.forEach(t => {
+      const isPlayer1 = t.player_id === player1.id;
+      const currentScore = isPlayer1 ? p1ScoreCurrent : p2ScoreCurrent;
+      let newScore = currentScore - t.score;
+      let isBust = false;
+      let isLegWon = false;
+
+      // Note: we're reconstructing, so we need to infer bust from DB data
+      // In DB, if it's a bust, score is recorded as 0 but logically it was a bust
+      // For accurate historical reconstruction, we assume a score of 0 might be a bust if it doesn't match a normal 0 throw,
+      // but without is_bust flag in DB, we rely on standard logic
+      if (newScore < 0 || newScore === 1) {
+         isBust = true;
+         newScore = currentScore;
+      } else if (newScore === 0) {
+         isLegWon = true;
+      } else if (t.score === 0 && currentScore > 0) {
+          // If score is 0 and it's not a bust, it's a miss
+      }
+
+      currentHistory.push({
+        playerId: t.player_id,
+        score: t.score,
+        previousScore: currentScore,
+        isBust
+      });
+
+      if (isPlayer1) {
+        p1ScoreCurrent = newScore;
+        p1MatchStats.matchScore += isBust ? 0 : t.score;
+        p1MatchStats.matchDarts += t.darts_used;
+        p1MatchStats.legDarts += t.darts_used;
+        p1MatchStats.hiScore = Math.max(p1MatchStats.hiScore, t.score);
+      } else {
+        p2ScoreCurrent = newScore;
+        p2MatchStats.matchScore += isBust ? 0 : t.score;
+        p2MatchStats.matchDarts += t.darts_used;
+        p2MatchStats.legDarts += t.darts_used;
+        p2MatchStats.hiScore = Math.max(p2MatchStats.hiScore, t.score);
+      }
+
+      if (isLegWon) {
+        if (isPlayer1) {
+          p1LegsCurrent++;
+          p1MatchStats.wonLegsScore += startingScore;
+          p1MatchStats.wonLegsDarts += p1MatchStats.legDarts;
+        } else {
+          p2LegsCurrent++;
+          p2MatchStats.wonLegsScore += startingScore;
+          p2MatchStats.wonLegsDarts += p2MatchStats.legDarts;
+        }
+
+        // Reset for next leg
+        p1ScoreCurrent = startingScore;
+        p2ScoreCurrent = startingScore;
+        p1MatchStats.legDarts = 0;
+        p2MatchStats.legDarts = 0;
+        currentHistory = [];
+        // Loser starts next leg
+        turnCurrent = isPlayer1 ? 2 : 1;
+      } else {
+        turnCurrent = isPlayer1 ? 2 : 1;
+      }
+    });
+
+    setP1Score(p1ScoreCurrent);
+    setP2Score(p2ScoreCurrent);
+    setP1Legs(p1LegsCurrent);
+    setP2Legs(p2LegsCurrent);
+    setCurrentTurn(turnCurrent);
+    setP1Stats(p1MatchStats);
+    setP2Stats(p2MatchStats);
+    setHistory(currentHistory);
+    setRefereeMessage('Gra wznowiona. Game on!');
+  };
 
   useEffect(() => {
     if (!voiceEnabled || !refereeMessage) return;
@@ -289,33 +382,41 @@ export default function DartGame({ gameId, player1, player2, legsToWin, starting
     }
   };
 
-  const handleUndo = () => {
+  const handleUndo = async () => {
     if (history.length === 0) return;
     
-    const lastThrow = history[history.length - 1];
-    
-    if (lastThrow.playerId === player1.id) {
-      setP1Score(lastThrow.previousScore);
-      setCurrentTurn(1);
-      setP1Stats(prev => ({
-        ...prev,
-        matchScore: prev.matchScore - (lastThrow.isBust ? 0 : lastThrow.score),
-        matchDarts: prev.matchDarts - 3,
-        legDarts: prev.legDarts - 3,
-      }));
-    } else {
-      setP2Score(lastThrow.previousScore);
-      setCurrentTurn(2);
-      setP2Stats(prev => ({
-        ...prev,
-        matchScore: prev.matchScore - (lastThrow.isBust ? 0 : lastThrow.score),
-        matchDarts: prev.matchDarts - 3,
-        legDarts: prev.legDarts - 3,
-      }));
+    try {
+      const res = await fetch(`/api/games/${gameId}/undo`, { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to undo throw on server');
+
+      const lastThrow = history[history.length - 1];
+
+      if (lastThrow.playerId === player1.id) {
+        setP1Score(lastThrow.previousScore);
+        setCurrentTurn(1);
+        setP1Stats(prev => ({
+          ...prev,
+          matchScore: prev.matchScore - (lastThrow.isBust ? 0 : lastThrow.score),
+          matchDarts: prev.matchDarts - 3,
+          legDarts: prev.legDarts - 3,
+        }));
+      } else {
+        setP2Score(lastThrow.previousScore);
+        setCurrentTurn(2);
+        setP2Stats(prev => ({
+          ...prev,
+          matchScore: prev.matchScore - (lastThrow.isBust ? 0 : lastThrow.score),
+          matchDarts: prev.matchDarts - 3,
+          legDarts: prev.legDarts - 3,
+        }));
+      }
+
+      setHistory(prev => prev.slice(0, -1));
+      setRefereeMessage('Cofnięto ostatni rzut.');
+    } catch (error) {
+      console.error(error);
+      setRefereeMessage('Błąd cofania rzutu.');
     }
-    
-    setHistory(prev => prev.slice(0, -1));
-    setRefereeMessage('Cofnięto ostatni rzut.');
   };
 
   const getRefereeComment = (score: number, remaining: number) => {
