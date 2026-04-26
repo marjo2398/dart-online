@@ -98,6 +98,58 @@ async function startServer() {
     }
   });
 
+  const recalculatePlayerStats = (playerId: number) => {
+    const games = db.prepare("SELECT * FROM games WHERE player1_id = ? OR player2_id = ?").all(playerId, playerId) as any[];
+
+    let highestCheckout = 0;
+    let bestLegDarts = 0;
+
+    for (const game of games) {
+      const throws = db.prepare("SELECT * FROM throws WHERE game_id = ? ORDER BY id ASC").all(game.id) as any[];
+
+      let p1Score = game.starting_score;
+      let p2Score = game.starting_score;
+      let p1LegDarts = 0;
+      let p2LegDarts = 0;
+
+      for (const t of throws) {
+        if (t.player_id === game.player1_id) {
+          p1LegDarts += t.darts_used;
+          p1Score -= t.score;
+          if (p1Score === 0) {
+            if (t.player_id === playerId) {
+              highestCheckout = Math.max(highestCheckout, t.score);
+              if (bestLegDarts === 0 || p1LegDarts < bestLegDarts) {
+                bestLegDarts = p1LegDarts;
+              }
+            }
+            p1Score = game.starting_score;
+            p2Score = game.starting_score;
+            p1LegDarts = 0;
+            p2LegDarts = 0;
+          }
+        } else if (t.player_id === game.player2_id) {
+          p2LegDarts += t.darts_used;
+          p2Score -= t.score;
+          if (p2Score === 0) {
+            if (t.player_id === playerId) {
+              highestCheckout = Math.max(highestCheckout, t.score);
+              if (bestLegDarts === 0 || p2LegDarts < bestLegDarts) {
+                bestLegDarts = p2LegDarts;
+              }
+            }
+            p1Score = game.starting_score;
+            p2Score = game.starting_score;
+            p1LegDarts = 0;
+            p2LegDarts = 0;
+          }
+        }
+      }
+    }
+
+    db.prepare("UPDATE players SET highest_checkout = ?, best_leg_darts = ? WHERE id = ?").run(highestCheckout, bestLegDarts, playerId);
+  };
+
   app.post("/api/games/:id/undo", (req, res) => {
     try {
       const { id } = req.params;
@@ -109,11 +161,42 @@ async function startServer() {
         return res.status(400).json({ error: "No throws to undo" });
       }
 
+      // Check if this throw ended a leg
+      const game = db.prepare("SELECT * FROM games WHERE id = ?").get(id) as any;
+      const allThrows = db.prepare("SELECT * FROM throws WHERE game_id = ? ORDER BY id ASC").all(id) as any[];
+
+      let p1Score = game.starting_score;
+      let p2Score = game.starting_score;
+      let wasCheckout = false;
+
+      for (const t of allThrows) {
+        if (t.player_id === game.player1_id) {
+          p1Score -= t.score;
+          if (p1Score === 0) {
+            if (t.id === lastThrow.id) wasCheckout = true;
+            p1Score = game.starting_score;
+            p2Score = game.starting_score;
+          }
+        } else if (t.player_id === game.player2_id) {
+          p2Score -= t.score;
+          if (p2Score === 0) {
+            if (t.id === lastThrow.id) wasCheckout = true;
+            p1Score = game.starting_score;
+            p2Score = game.starting_score;
+          }
+        }
+      }
+
       // Revert player stats
       db.prepare("UPDATE players SET total_points = total_points - ?, total_darts_thrown = total_darts_thrown - ? WHERE id = ?").run(lastThrow.score, lastThrow.darts_used, lastThrow.player_id);
 
       // Delete the throw
       db.prepare("DELETE FROM throws WHERE id = ?").run(lastThrow.id);
+
+      // Recalculate if it was a checkout
+      if (wasCheckout) {
+        recalculatePlayerStats(lastThrow.player_id);
+      }
 
       res.json({ success: true, undoneThrow: lastThrow });
     } catch (error) {
