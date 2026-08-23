@@ -1,6 +1,6 @@
 # Dart Online
 
-Dart Online to samodzielny system sędziowski dla dwóch zawodników. Frontend jest statyczną aplikacją React/Vite, a produkcyjne API działa na PHP 8 i SQLite — bez serwera Node.js, płatnego AI i usług zewnętrznych.
+Dart Online to samodzielny system sędziowski dla dwóch zawodników. Frontend jest statyczną aplikacją React/Vite, a produkcyjne API działa na PHP 7.4+ i SQLite — bez serwera Node.js, płatnego AI i usług zewnętrznych.
 
 ## Funkcje
 
@@ -20,7 +20,7 @@ Backend jest źródłem prawdy. Po zapisie wizyty i cofnięciu frontend przyjmuj
 ## Wymagania lokalne
 
 - Node.js z npm;
-- PHP 8.0 lub nowszy;
+- PHP 7.4 lub nowszy;
 - rozszerzenie PHP `pdo_sqlite`;
 - nowoczesna przeglądarka. Rozpoznawanie mowy zależy od wsparcia Web Speech API.
 

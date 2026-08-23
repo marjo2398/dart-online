@@ -60,7 +60,7 @@ function requireMethod(string $expected): void
 function readJsonBody(): array
 {
     $contentType = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
-    if (!str_starts_with($contentType, 'application/json')) {
+    if (strpos($contentType, 'application/json') !== 0) {
         problem(415, 'content-type-required', 'Wyślij dane jako application/json.');
     }
 
@@ -79,7 +79,7 @@ function readJsonBody(): array
 
     try {
         $decoded = json_decode($raw, true, 32, JSON_THROW_ON_ERROR);
-    } catch (JsonException) {
+    } catch (JsonException $exception) {
         problem(400, 'invalid-json', 'Nieprawidłowy format JSON.');
     }
 

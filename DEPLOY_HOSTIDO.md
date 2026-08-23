@@ -4,7 +4,7 @@ Instrukcja zakłada zwykły hosting LiteSpeed/PHP i adres `https://twoja-domena.
 
 ## 1. Środowisko PHP
 
-W panelu Hostido ustaw PHP 8.0 lub nowszy i upewnij się, że dostępne jest `PDO SQLite` (`pdo_sqlite`). Włącz certyfikat SSL i przekierowanie ruchu na HTTPS — produkcyjna sesja używa ciasteczka `Secure`.
+Aplikacja obsługuje PHP 7.4 lub nowszy. Upewnij się, że dostępne jest `PDO SQLite` (`pdo_sqlite`). Włącz certyfikat SSL i przekierowanie ruchu na HTTPS — produkcyjna sesja używa ciasteczka `Secure`.
 
 ## 2. Budowanie lokalne
 
