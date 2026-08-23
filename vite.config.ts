@@ -1,24 +1,33 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import { defineConfig } from 'vite';
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
-  return {
-    plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+const omitPrivateApiFiles = () => ({
+  name: 'omit-private-api-files',
+  apply: 'build' as const,
+  closeBundle() {
+    const apiDirectory = path.resolve(__dirname, 'dist/api');
+    const dataDirectory = path.join(apiDirectory, 'data');
+    rmSync(path.join(apiDirectory, 'config.local.php'), { force: true });
+    rmSync(dataDirectory, { recursive: true, force: true });
+    mkdirSync(dataDirectory, { recursive: true });
+    copyFileSync(path.resolve(__dirname, 'public/api/data/.htaccess'), path.join(dataDirectory, '.htaccess'));
+  },
+});
+
+export default defineConfig({
+  base: './',
+  plugins: [react(), tailwindcss(), omitPrivateApiFiles()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, '.'),
     },
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
+  },
+  server: {
+    proxy: {
+      '/api': 'http://127.0.0.1:8080',
     },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-    },
-  };
+  },
 });

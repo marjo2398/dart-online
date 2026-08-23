@@ -1,340 +1,503 @@
-import React, { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
+import {
+  AlertTriangle,
+  CalendarDays,
+  ChevronRight,
+  History,
+  LoaderCircle,
+  LogOut,
+  Plus,
+  Play,
+  RotateCcw,
+  ShieldCheck,
+  Target,
+  Trash2,
+  Trophy,
+  Users,
+} from 'lucide-react';
+import { ApiError, api, messageFrom } from './api';
 import DartGame from './components/DartGame';
-import { Player, Game, Throw } from './types';
-import { Trophy, Users, PlusCircle, Play, RotateCcw, Trash2 } from 'lucide-react';
+import type { DashboardData, GameSnapshot, GameSummary, Player, SessionState } from './types';
+
+const dateFormatter = new Intl.DateTimeFormat('pl-PL', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function formatDate(value: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
+}
+
+function average(player: Player): string {
+  if (player.total_darts_thrown === 0) return '—';
+  return ((player.total_points / player.total_darts_thrown) * 3).toFixed(1);
+}
+
+function ErrorNotice({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
+  return (
+    <div className="error-notice" role="alert">
+      <AlertTriangle aria-hidden="true" />
+      <span>{message}</span>
+      {onDismiss && (
+        <button type="button" onClick={onDismiss} aria-label="Zamknij komunikat">
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <main className="center-screen">
+      <LoaderCircle className="spinner" aria-hidden="true" />
+      <p>Łączenie z systemem sędziowskim…</p>
+    </main>
+  );
+}
+
+function LoginScreen({
+  busy,
+  error,
+  onLogin,
+}: {
+  busy: boolean;
+  error: string | null;
+  onLogin: (password: string) => Promise<void>;
+}) {
+  const [password, setPassword] = useState('');
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!password || busy) return;
+    await onLogin(password);
+    setPassword('');
+  };
+
+  return (
+    <main className="login-screen">
+      <section className="login-card" aria-labelledby="login-title">
+        <div className="brand-mark"><Target aria-hidden="true" /></div>
+        <p className="eyebrow">Dart Online</p>
+        <h1 id="login-title">Stół sędziowski</h1>
+        <p className="muted">Zaloguj się PIN-em lub hasłem ustawionym przez administratora.</p>
+        {error && <ErrorNotice message={error} />}
+        <form onSubmit={submit} className="login-form">
+          <label htmlFor="password">PIN lub hasło</label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            disabled={busy}
+            autoFocus
+          />
+          <button className="button button-primary button-large" type="submit" disabled={busy || !password}>
+            {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <ShieldCheck aria-hidden="true" />}
+            {busy ? 'Logowanie…' : 'Wejdź do aplikacji'}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function GameCard({
+  game,
+  busy,
+  onResume,
+  onDelete,
+}: {
+  game: GameSummary;
+  busy: boolean;
+  onResume: (id: number) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
+}) {
+  return (
+    <article className="game-card">
+      <div className="game-card-score">
+        <div>
+          <strong>{game.player1.name}</strong>
+          <span>{game.player1.remaining}</span>
+        </div>
+        <b>{game.player1.legs} : {game.player2.legs}</b>
+        <div>
+          <strong>{game.player2.name}</strong>
+          <span>{game.player2.remaining}</span>
+        </div>
+      </div>
+      <div className="game-card-meta">
+        <span>{game.starting_score} · do {game.legs_to_win} legów</span>
+        <span>Leg {game.current_leg} · {game.visit_count} wizyt</span>
+      </div>
+      <div className="game-card-actions">
+        <button className="button button-primary" type="button" disabled={busy} onClick={() => onResume(game.id)}>
+          <RotateCcw aria-hidden="true" /> Wznów
+        </button>
+        <button
+          className="button button-danger-ghost button-icon"
+          type="button"
+          disabled={busy}
+          onClick={() => onDelete(game.id)}
+          title="Usuń mecz"
+          aria-label={`Usuń mecz ${game.player1.name} kontra ${game.player2.name}`}
+        >
+          <Trash2 aria-hidden="true" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function PlayerCard({ player, busy, onDelete }: { player: Player; busy: boolean; onDelete: (id: number) => Promise<void> }) {
+  const winRate = player.games_played > 0 ? Math.round((player.games_won / player.games_played) * 100) : 0;
+  return (
+    <article className="player-card">
+      <div className="player-card-heading">
+        <div>
+          <h3>{player.name}</h3>
+          <span>{player.games_won} wygranych z {player.games_played} · {winRate}%</span>
+        </div>
+        <strong>{average(player)} <small>AVG</small></strong>
+        <button
+          type="button"
+          className="icon-link danger"
+          disabled={busy}
+          onClick={() => onDelete(player.id)}
+          title="Usuń zawodnika"
+          aria-label={`Usuń zawodnika ${player.name}`}
+        >
+          <Trash2 aria-hidden="true" />
+        </button>
+      </div>
+      <dl className="stat-grid">
+        <div><dt>100–139</dt><dd>{player.count_100}</dd></div>
+        <div><dt>140–179</dt><dd>{player.count_140}</dd></div>
+        <div><dt>180</dt><dd>{player.count_180}</dd></div>
+        <div><dt>Najwyższa</dt><dd>{player.hi_score}</dd></div>
+        <div><dt>Checkout</dt><dd>{player.highest_checkout || '—'}</dd></div>
+        <div><dt>Najlepszy leg</dt><dd>{player.best_leg_darts ? `${player.best_leg_darts} lot.` : '—'}</dd></div>
+      </dl>
+    </article>
+  );
+}
+
+function HistoryRow({ game, busy, onOpen, onDelete }: {
+  game: GameSummary;
+  busy: boolean;
+  onOpen: (id: number) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
+}) {
+  const winner = game.winner_id === game.player1.id ? game.player1 : game.player2;
+  return (
+    <article className="history-row">
+      <div className="history-icon"><Trophy aria-hidden="true" /></div>
+      <div className="history-main">
+        <strong>{game.player1.name} <span>{game.player1.legs}</span> : <span>{game.player2.legs}</span> {game.player2.name}</strong>
+        <small>Wygrywa {winner.name} · {game.starting_score} · BO{game.legs_to_win * 2 - 1}</small>
+      </div>
+      <time dateTime={game.finished_at ?? undefined}>{formatDate(game.finished_at ?? game.updated_at)}</time>
+      <button type="button" className="icon-link" disabled={busy} onClick={() => onOpen(game.id)} title="Otwórz mecz" aria-label="Otwórz szczegóły meczu">
+        <ChevronRight aria-hidden="true" />
+      </button>
+      <button type="button" className="icon-link danger" disabled={busy} onClick={() => onDelete(game.id)} title="Usuń mecz" aria-label="Usuń mecz z historii">
+        <Trash2 aria-hidden="true" />
+      </button>
+    </article>
+  );
+}
 
 export default function App() {
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [activeGames, setActiveGames] = useState<Game[]>([]);
+  const [booting, setBooting] = useState(true);
+  const [session, setSession] = useState<SessionState | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [currentGame, setCurrentGame] = useState<GameSnapshot | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+
   const [newPlayerName, setNewPlayerName] = useState('');
   const [player1Id, setPlayer1Id] = useState<number | ''>('');
   const [player2Id, setPlayer2Id] = useState<number | ''>('');
-  const [legsToWin, setLegsToWin] = useState<number>(3);
-  const [startingScore, setStartingScore] = useState<number>(501);
-  const [gameStarted, setGameStarted] = useState(false);
-  const [gameId, setGameId] = useState<number | null>(null);
-  const [initialThrows, setInitialThrows] = useState<Throw[]>([]);
-  const [resumedGameStartingScore, setResumedGameStartingScore] = useState<number>(501);
-  const [resumedGameLegsToWin, setResumedGameLegsToWin] = useState<number>(3);
-  const [isResumedGame, setIsResumedGame] = useState(false);
+  const [legsToWin, setLegsToWin] = useState(2);
+  const [startingScore, setStartingScore] = useState(501);
 
-  useEffect(() => {
-    fetchPlayers();
-    fetchActiveGames();
-  }, []);
+  const installDashboard = (data: DashboardData) => {
+    setDashboard(data);
+    const ids = new Set(data.players.map((player) => player.id));
+    setPlayer1Id((current) => (current !== '' && ids.has(current) ? current : (data.players[0]?.id ?? '')));
+    setPlayer2Id((current) => {
+      if (current !== '' && ids.has(current)) return current;
+      return data.players.find((player) => player.id !== data.players[0]?.id)?.id ?? '';
+    });
+  };
 
-  const fetchPlayers = async () => {
+  const handleApiError = (caught: unknown) => {
+    if (caught instanceof ApiError && (caught.status === 401 || caught.code === 'invalid-csrf-token')) {
+      setSession({ authenticated: false, csrf_token: null });
+      setDashboard(null);
+      setCurrentGame(null);
+    }
+    setError(messageFrom(caught));
+  };
+
+  const locked = async (operation: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
     try {
-      const res = await fetch('/api/players');
-      const data = await res.json();
-      setPlayers(data);
-    } catch (error) {
-      console.error('Failed to fetch players', error);
+      await operation();
+    } catch (caught) {
+      handleApiError(caught);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
   };
 
-  const handleAddPlayer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPlayerName.trim()) return;
-    try {
-      await fetch('/api/players', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newPlayerName.trim() }),
-      });
+  const refreshDashboard = async () => {
+    const data = await api.dashboard();
+    installDashboard(data);
+  };
+
+  useEffect(() => {
+    let active = true;
+    const boot = async () => {
+      try {
+        const nextSession = await api.session();
+        if (!active) return;
+        setSession(nextSession);
+        if (nextSession.authenticated) {
+          const data = await api.dashboard();
+          if (active) installDashboard(data);
+        }
+      } catch (caught) {
+        if (active) handleApiError(caught);
+      } finally {
+        if (active) setBooting(false);
+      }
+    };
+    boot().catch((caught) => {
+      if (active) {
+        handleApiError(caught);
+        setBooting(false);
+      }
+    });
+    return () => { active = false; };
+  }, []);
+
+  const handleLogin = async (password: string) => {
+    await locked(async () => {
+      const nextSession = await api.login(password);
+      const data = await api.dashboard();
+      setSession(nextSession);
+      installDashboard(data);
+    });
+  };
+
+  const handleLogout = async () => {
+    await locked(async () => {
+      const nextSession = await api.logout();
+      setSession(nextSession);
+      setDashboard(null);
+      setCurrentGame(null);
+    });
+  };
+
+  const handleAddPlayer = async (event: FormEvent) => {
+    event.preventDefault();
+    const name = newPlayerName.trim();
+    if (!name) return;
+    await locked(async () => {
+      await api.createPlayer(name);
       setNewPlayerName('');
-      fetchPlayers();
-    } catch (error) {
-      console.error('Failed to add player', error);
-    }
+      await refreshDashboard();
+    });
   };
 
   const handleDeletePlayer = async (id: number) => {
-    if (!confirm('Czy na pewno chcesz usunąć tego gracza? Jego statystyki, gry w których brał udział oraz wszystkie rzuty zostaną trwale usunięte.')) return;
-    try {
-      await fetch(`/api/players/${id}`, { method: 'DELETE' });
-      fetchPlayers();
-      fetchActiveGames(); // Some games might have been deleted
-    } catch (error) {
-      console.error('Failed to delete player', error);
-    }
+    const player = dashboard?.players.find((candidate) => candidate.id === id);
+    if (!player || !window.confirm(`Usunąć zawodnika „${player.name}”? Znikną też wszystkie jego mecze i wizyty. Tej operacji nie można cofnąć.`)) return;
+    await locked(async () => {
+      await api.deletePlayer(id);
+      await refreshDashboard();
+    });
   };
 
   const handleStartGame = async () => {
     if (player1Id === '' || player2Id === '' || player1Id === player2Id) {
-      alert('Wybierz dwóch różnych graczy!');
+      setError('Wybierz dwóch różnych zawodników.');
       return;
     }
-    try {
-      const res = await fetch('/api/games', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          player1_id: player1Id,
-          player2_id: player2Id,
-          legs_to_win: legsToWin,
-          starting_score: startingScore,
-        }),
-      });
-      const data = await res.json();
-      setGameId(data.id);
-      setGameStarted(true);
-    } catch (error) {
-      console.error('Failed to start game', error);
-    }
+    await locked(async () => {
+      const snapshot = await api.createGame(player1Id, player2Id, legsToWin, startingScore);
+      setCurrentGame(snapshot);
+    });
   };
 
-  const fetchActiveGames = async () => {
-    try {
-      const res = await fetch('/api/games/active');
-      const data = await res.json();
-      setActiveGames(data);
-    } catch (error) {
-      console.error('Failed to fetch active games', error);
-    }
-  };
-
-  const handleResumeGame = async (game: Game) => {
-    try {
-      const res = await fetch(`/api/games/${game.id}`);
-      const data = await res.json();
-      setPlayer1Id(game.player1_id);
-      setPlayer2Id(game.player2_id);
-      setResumedGameLegsToWin(game.legs_to_win);
-      setResumedGameStartingScore(game.starting_score || 501);
-      setInitialThrows(data.throws || []);
-      setGameId(game.id);
-      setIsResumedGame(true);
-      setGameStarted(true);
-    } catch (error) {
-      console.error('Failed to resume game', error);
-    }
-  };
-
-  const handleGameEnd = () => {
-    setGameStarted(false);
-    setGameId(null);
-    setInitialThrows([]);
-    setIsResumedGame(false);
-    fetchPlayers(); // Refresh stats
-    fetchActiveGames();
+  const handleOpenGame = async (id: number) => {
+    await locked(async () => {
+      setCurrentGame(await api.game(id));
+    });
   };
 
   const handleDeleteGame = async (id: number) => {
-    if (!confirm('Czy na pewno chcesz usunąć tę grę? Zapisane postępy znikną.')) return;
-    try {
-      await fetch(`/api/games/${id}`, { method: 'DELETE' });
-      fetchActiveGames();
-    } catch (error) {
-      console.error('Failed to delete game', error);
-    }
+    if (!window.confirm('Usunąć ten mecz wraz ze wszystkimi wizytami? Statystyki zostaną przeliczone.')) return;
+    await locked(async () => {
+      await api.deleteGame(id);
+      await refreshDashboard();
+    });
   };
 
-  if (gameStarted && gameId) {
-    const p1 = players.find(p => p.id === player1Id);
-    const p2 = players.find(p => p.id === player2Id);
-    if (p1 && p2) {
-      return <DartGame gameId={gameId} player1={p1} player2={p2} legsToWin={isResumedGame ? resumedGameLegsToWin : legsToWin} startingScore={isResumedGame ? resumedGameStartingScore : startingScore} initialThrows={initialThrows} onGameEnd={handleGameEnd} />;
-    }
+  const handleExitGame = async () => {
+    await locked(async () => {
+      await refreshDashboard();
+      setCurrentGame(null);
+    });
+  };
+
+  if (booting) return <LoadingScreen />;
+
+  if (!session?.authenticated) {
+    return <LoginScreen busy={busy} error={error} onLogin={handleLogin} />;
   }
 
-  return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans p-6">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <header className="text-center space-y-2">
-          <h1 className="text-5xl font-black tracking-tight text-emerald-500 flex items-center justify-center gap-3">
-            <Trophy className="w-10 h-10" />
-            DART 501
-          </h1>
-          <p className="text-zinc-400 font-medium">System Sędziowski Online</p>
-        </header>
+  if (currentGame) {
+    return <DartGame initialSnapshot={currentGame} onExit={handleExitGame} />;
+  }
 
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* New Game Setup */}
-          <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800 shadow-xl">
-            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-              <Play className="w-6 h-6 text-emerald-500" />
-              Nowa Gra
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Gracz 1</label>
-                <select
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={player1Id}
-                  onChange={(e) => setPlayer1Id(Number(e.target.value))}
-                >
-                  <option value="">Wybierz gracza...</option>
-                  {players.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Gracz 2</label>
-                <select
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={player2Id}
-                  onChange={(e) => setPlayer2Id(Number(e.target.value))}
-                >
-                  <option value="">Wybierz gracza...</option>
-                  {players.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Liczba wygranych legów (Best of)</label>
-                <select
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={legsToWin}
-                  onChange={(e) => setLegsToWin(Number(e.target.value))}
-                >
-                  <option value={1}>1 Leg</option>
-                  <option value={2}>Best of 3 (do 2 wygranych)</option>
-                  <option value={3}>Best of 5 (do 3 wygranych)</option>
-                  <option value={5}>Best of 9 (do 5 wygranych)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Punkty startowe</label>
-                <select
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={startingScore}
-                  onChange={(e) => setStartingScore(Number(e.target.value))}
-                >
-                  <option value={301}>301</option>
-                  <option value={501}>501</option>
-                  <option value={701}>701</option>
-                  <option value={901}>901</option>
-                </select>
-              </div>
-              <button
-                onClick={handleStartGame}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition-colors mt-4"
-              >
-                Rozpocznij Mecz
-              </button>
+  if (!dashboard) return <LoadingScreen />;
+
+  const enoughPlayers = dashboard.players.length >= 2;
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="brand-lockup">
+          <div className="brand-mark small"><Target aria-hidden="true" /></div>
+          <div><strong>Dart Online</strong><span>system sędziowski</span></div>
+        </div>
+        <button className="button button-ghost" type="button" disabled={busy} onClick={handleLogout}>
+          <LogOut aria-hidden="true" /> Wyloguj
+        </button>
+      </header>
+
+      <div className="dashboard-layout">
+        <section className="hero-panel">
+          <div>
+            <p className="eyebrow">Turniej gotowy</p>
+            <h1>Game on.</h1>
+            <p>Dwóch zawodników, pełna historia i sędzia pilnujący każdej wizyty.</p>
+          </div>
+          <Trophy aria-hidden="true" />
+        </section>
+
+        {error && <ErrorNotice message={error} onDismiss={() => setError(null)} />}
+
+        <div className="dashboard-grid">
+          <section className="panel new-game-panel" aria-labelledby="new-game-title">
+            <div className="section-heading">
+              <div><Play aria-hidden="true" /><div><p className="eyebrow">Mecz</p><h2 id="new-game-title">Nowa gra</h2></div></div>
+              <span className="status-dot">Double out</span>
             </div>
 
-            {activeGames.length > 0 && (
-              <div className="mt-8">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <RotateCcw className="w-5 h-5 text-emerald-500" />
-                  Wznów Grę
-                </h3>
-                <div className="space-y-3">
-                  {activeGames.map(game => (
-                    <div key={game.id} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex justify-between items-center">
-                      <div>
-                        <p className="font-bold">{game.player1_name} vs {game.player2_name}</p>
-                        <p className="text-sm text-zinc-500">BO{game.legs_to_win * 2 - 1} • Od {game.starting_score || 501}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleResumeGame(game)}
-                          className="bg-emerald-600/20 text-emerald-500 hover:bg-emerald-600 hover:text-white px-4 py-2 rounded-lg transition-colors font-medium text-sm"
-                        >
-                          Wznów
-                        </button>
-                        <button
-                          onClick={() => handleDeleteGame(game.id)}
-                          className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white p-2 rounded-lg transition-colors"
-                          title="Usuń grę"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            {!enoughPlayers && (
+              <div className="empty-inline"><Users aria-hidden="true" /><span>Dodaj co najmniej dwóch zawodników, aby rozpocząć.</span></div>
+            )}
+
+            <div className="form-grid">
+              <label>
+                Zawodnik 1 · zaczyna pierwszy leg
+                <select value={player1Id} disabled={busy || !enoughPlayers} onChange={(event) => setPlayer1Id(event.target.value ? Number(event.target.value) : '')}>
+                  <option value="">Wybierz zawodnika</option>
+                  {dashboard.players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                </select>
+              </label>
+              <label>
+                Zawodnik 2
+                <select value={player2Id} disabled={busy || !enoughPlayers} onChange={(event) => setPlayer2Id(event.target.value ? Number(event.target.value) : '')}>
+                  <option value="">Wybierz zawodnika</option>
+                  {dashboard.players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                </select>
+              </label>
+              <label>
+                Punkty startowe
+                <select value={startingScore} disabled={busy} onChange={(event) => setStartingScore(Number(event.target.value))}>
+                  {[301, 501, 701, 901].map((score) => <option key={score} value={score}>{score}</option>)}
+                </select>
+              </label>
+              <label>
+                Format meczu
+                <select value={legsToWin} disabled={busy} onChange={(event) => setLegsToWin(Number(event.target.value))}>
+                  <option value={1}>1 leg</option>
+                  <option value={2}>Best of 3 · do 2</option>
+                  <option value={3}>Best of 5 · do 3</option>
+                  <option value={5}>Best of 9 · do 5</option>
+                </select>
+              </label>
+            </div>
+            <button className="button button-primary button-large full-width" type="button" disabled={busy || !enoughPlayers} onClick={handleStartGame}>
+              {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Play aria-hidden="true" />}
+              Rozpocznij mecz
+            </button>
+          </section>
+
+          <section className="panel active-games-panel" aria-labelledby="active-games-title">
+            <div className="section-heading">
+              <div><RotateCcw aria-hidden="true" /><div><p className="eyebrow">W toku</p><h2 id="active-games-title">Aktywne mecze</h2></div></div>
+              <span className="counter">{dashboard.active_games.length}</span>
+            </div>
+            {dashboard.active_games.length === 0 ? (
+              <div className="empty-state"><Target aria-hidden="true" /><strong>Brak rozpoczętych meczów</strong><span>Nowa gra pojawi się tutaj automatycznie.</span></div>
+            ) : (
+              <div className="game-list">
+                {dashboard.active_games.map((game) => (
+                  <GameCard key={game.id} game={game} busy={busy} onResume={handleOpenGame} onDelete={handleDeleteGame} />
+                ))}
               </div>
             )}
-          </div>
-
-          {/* Players Management */}
-          <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800 shadow-xl flex flex-col">
-            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-              <Users className="w-6 h-6 text-emerald-500" />
-              Zawodnicy
-            </h2>
-            
-            <form onSubmit={handleAddPlayer} className="flex gap-2 mb-6">
-              <input
-                type="text"
-                placeholder="Imię gracza..."
-                className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={newPlayerName}
-                onChange={(e) => setNewPlayerName(e.target.value)}
-              />
-              <button
-                type="submit"
-                className="bg-zinc-800 hover:bg-zinc-700 text-white p-3 rounded-xl transition-colors flex items-center justify-center"
-              >
-                <PlusCircle className="w-6 h-6" />
-              </button>
-            </form>
-
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-              {players.length === 0 ? (
-                <p className="text-zinc-500 text-center py-4">Brak graczy. Dodaj pierwszego!</p>
-              ) : (
-                players.map(p => (
-                  <div key={p.id} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex flex-col gap-3 group relative">
-                    <button
-                      onClick={() => handleDeletePlayer(p.id)}
-                      className="absolute top-2 right-2 p-2 bg-red-500/10 text-red-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
-                      title="Usuń gracza"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    <div className="flex justify-between items-center pr-10">
-                      <span className="font-bold text-lg">{p.name}</span>
-                      <div className="text-sm font-mono text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded">
-                        Avg: {p.total_darts_thrown > 0 ? ((p.total_points / p.total_darts_thrown) * 3).toFixed(1) : '-'}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 text-xs text-zinc-400 text-center bg-zinc-900 p-2 rounded-lg">
-                      <div>
-                        <div className="text-zinc-500 mb-1">W/L</div>
-                        <div className="text-white font-medium">{p.games_won} / {p.games_played}</div>
-                      </div>
-                      <div>
-                        <div className="text-zinc-500 mb-1">Win %</div>
-                        <div className="text-white font-medium">{p.games_played > 0 ? ((p.games_won / p.games_played) * 100).toFixed(0) : 0}%</div>
-                      </div>
-                      <div>
-                        <div className="text-zinc-500 mb-1">180s</div>
-                        <div className="text-white font-medium">{p.count_180 || 0}</div>
-                      </div>
-                      <div>
-                        <div className="text-zinc-500 mb-1">140+</div>
-                        <div className="text-white font-medium">{p.count_140 || 0}</div>
-                      </div>
-                      <div>
-                        <div className="text-zinc-500 mb-1">100+</div>
-                        <div className="text-white font-medium">{p.count_100 || 0}</div>
-                      </div>
-                      <div>
-                        <div className="text-zinc-500 mb-1">Hi-Score</div>
-                        <div className="text-white font-medium">{p.hi_score || 0}</div>
-                      </div>
-                      <div>
-                        <div className="text-zinc-500 mb-1">Hi-Check</div>
-                        <div className="text-white font-medium">{p.highest_checkout || 0}</div>
-                      </div>
-                      <div>
-                        <div className="text-zinc-500 mb-1">Best Leg</div>
-                        <div className="text-white font-medium">{p.best_leg_darts || '-'}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          </section>
         </div>
+
+        <section className="panel players-panel" aria-labelledby="players-title">
+          <div className="section-heading section-heading-wrap">
+            <div><Users aria-hidden="true" /><div><p className="eyebrow">Ranking lokalny</p><h2 id="players-title">Zawodnicy i statystyki</h2></div></div>
+            <form className="inline-form" onSubmit={handleAddPlayer}>
+              <label className="sr-only" htmlFor="new-player">Nazwa nowego zawodnika</label>
+              <input id="new-player" type="text" maxLength={40} value={newPlayerName} onChange={(event) => setNewPlayerName(event.target.value)} placeholder="Nazwa zawodnika" disabled={busy} />
+              <button className="button button-secondary" type="submit" disabled={busy || !newPlayerName.trim()}><Plus aria-hidden="true" /> Dodaj</button>
+            </form>
+          </div>
+          {dashboard.players.length === 0 ? (
+            <div className="empty-state compact"><Users aria-hidden="true" /><strong>Jeszcze nikogo tu nie ma</strong><span>Dodaj pierwszego zawodnika powyżej.</span></div>
+          ) : (
+            <div className="players-grid">
+              {dashboard.players.map((player) => <PlayerCard key={player.id} player={player} busy={busy} onDelete={handleDeletePlayer} />)}
+            </div>
+          )}
+        </section>
+
+        <section className="panel history-panel" aria-labelledby="history-title">
+          <div className="section-heading">
+            <div><History aria-hidden="true" /><div><p className="eyebrow">Archiwum</p><h2 id="history-title">Historia meczów</h2></div></div>
+            <span className="history-caption"><CalendarDays aria-hidden="true" /> Ostatnie 50</span>
+          </div>
+          {dashboard.history.length === 0 ? (
+            <div className="empty-state compact"><History aria-hidden="true" /><strong>Brak zakończonych meczów</strong><span>Wynik pierwszego meczu zapisze się tutaj.</span></div>
+          ) : (
+            <div className="history-list">
+              {dashboard.history.map((game) => <HistoryRow key={game.id} game={game} busy={busy} onOpen={handleOpenGame} onDelete={handleDeleteGame} />)}
+            </div>
+          )}
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

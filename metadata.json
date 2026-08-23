@@ -1,5 +1,0 @@
-{
-  "name": "Dart 501 Referee",
-  "description": "System sędziowski do gry w darta 501 ze sterowaniem głosowym.",
-  "requestFramePermissions": ["microphone"]
-}

@@ -1,5 +1,4 @@
 node_modules/
-build/
 dist/
 coverage/
 .DS_Store
@@ -7,3 +6,7 @@ coverage/
 .env*
 !.env.example
 darts.db
+public/api/config.local.php
+public/api/data/*
+!public/api/data/.htaccess
+!public/api/data/.gitkeep
