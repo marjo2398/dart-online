@@ -473,7 +473,7 @@ function rebuildAllPlayerStats(PDO $pdo): void
         SQL);
 }
 
-function transaction(PDO $pdo, callable $callback): mixed
+function transaction(PDO $pdo, callable $callback)
 {
     $pdo->beginTransaction();
     try {
