@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { ApiError, api, messageFrom } from './api';
 import DartGame from './components/DartGame';
+import Devices from './components/Devices';
+import WriteStatus, { useWriteState } from './components/WriteStatus';
 import type { DashboardData, GameSnapshot, GameSummary, Player, SessionState } from './types';
 
 const dateFormatter = new Intl.DateTimeFormat('pl-PL', {
@@ -220,6 +222,7 @@ export default function App() {
   const [currentGame, setCurrentGame] = useState<GameSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const writeState = useWriteState();
   const busyRef = useRef(false);
 
   const [newPlayerName, setNewPlayerName] = useState('');
@@ -351,7 +354,8 @@ export default function App() {
   const handleDeleteGame = async (id: number) => {
     if (!window.confirm('Usunąć ten mecz wraz ze wszystkimi wizytami? Statystyki zostaną przeliczone.')) return;
     await locked(async () => {
-      await api.deleteGame(id);
+      const current = await api.game(id);
+      await api.deleteGame(id, current.game.revision);
       await refreshDashboard();
     });
   };
@@ -370,7 +374,7 @@ export default function App() {
   }
 
   if (currentGame) {
-    return <DartGame initialSnapshot={currentGame} onExit={handleExitGame} />;
+    return <DartGame key={currentGame.game.id} initialSnapshot={currentGame} onExit={handleExitGame} onSessionExpired={() => { setSession(null); setCurrentGame(null); setDashboard(null); setError('Sesja wygasła. Zaloguj się ponownie; niezakończona operacja pozostaje do bezpiecznego ponowienia.'); }} />;
   }
 
   if (!dashboard) return <LoadingScreen />;
@@ -400,6 +404,10 @@ export default function App() {
         </section>
 
         {error && <ErrorNotice message={error} onDismiss={() => setError(null)} />}
+
+        <WriteStatus onRecovered={refreshDashboard} onAuthError={handleApiError} />
+        {writeState === 'unknown' && <p className="sync-warning">Nowe zapisy wstrzymane do rozstrzygnięcia poprzedniej operacji.</p>}
+        <Devices />
 
         <div className="dashboard-grid">
           <section className="panel new-game-panel" aria-labelledby="new-game-title">

@@ -2,12 +2,22 @@
 
 Dart Online to samodzielny system sędziowski dla dwóch zawodników. Frontend jest statyczną aplikacją React/Vite, a produkcyjne API działa na PHP 7.4+ i SQLite — bez serwera Node.js, płatnego AI i usług zewnętrznych.
 
+## Integracja z natywnym Dart Lens
+
+Gałąź integracji dodaje wspólny wynik WWW/APK, pojedyncze lotki i częściowe wizyty, parowanie urządzeń z ograniczonym dostępem oraz propozycje jednej aktywnej kamery. Wynik zmienia wyłącznie zatwierdzona komenda operatora; obraz pozostaje na telefonie. Offline klient pokazuje nieaktualny stan i blokuje nowe zapisy. Nieznany wynik operacji odzyskuje się ponowieniem tej samej komendy, bez ponownego naliczania.
+
+[Kontrakt API i uprawnienia](docs/API.md), [wdrożenie z kopią SQLite](DEPLOY_HOSTIDO.md), [aktualny stan weryfikacji](PROJECT_STATE.md). [Instrukcja pierwszej gry i parowania APK](../dart-lens/docs/ONLINE_QUICK_START.md) znajduje się w sąsiednim repozytorium `dart-lens` (link dla wspólnego lokalnego checkoutu). Docelowy adres to **https://host749284.xce.pl/dart/**. Wdrożenie integracji nadal trwa; testy lokalne nie potwierdzają działania wydania na produkcji ani telefonach.
+
 ## Funkcje
 
 - mecze 301, 501, 701 i 901;
 - formaty do 1, 2, 3 albo 5 wygranych legów;
 - double-out, bust i naprzemienne rozpoczynanie legów;
 - cofnięcie ostatniej wizyty, także checkoutu i rzutu kończącego mecz;
+- pojedyncze pola, częściowe wizyty oraz korekta/cofnięcie ostatniej lotki lub wizyty sumarycznej;
+- synchronizacja rewizji, deduplikacja komend i audyt zmian;
+- jednorazowe kody operatora/kamery/widza, wygasanie i cofanie dostępu;
+- odczyty kamery wymagające zatwierdzenia lub korekty przez operatora;
 - wznowienie aktywnej gry z pełnego stanu zapisanego w SQLite;
 - trwała lista zawodników, meczów, wizyt i przeliczanych statystyk;
 - historia 50 ostatnich zakończonych meczów;

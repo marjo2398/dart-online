@@ -1,35 +1,34 @@
-import type { DashboardData, GameSnapshot, Player, SessionState } from './types';
-
-interface ApiSuccess<T> {
-  ok: true;
-  data: T;
-}
-
-interface ApiFailure {
-  ok: false;
-  error: {
-    code: string;
-    message: string;
-    details?: Record<string, unknown>;
-  };
-}
+import type { DashboardData, Device, GameSnapshot, Player, SessionState } from './types';
 
 export class ApiError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly details?: Record<string, unknown>;
-
-  constructor(status: number, code: string, message: string, details?: Record<string, unknown>) {
+  constructor(readonly status: number, readonly code: string, message: string, readonly details?: Record<string, unknown>) {
     super(message);
     this.name = 'ApiError';
-    this.status = status;
-    this.code = code;
-    this.details = details;
   }
 }
-
+export interface PendingCommand { action: string; body: Record<string, unknown>; created_at: string }
+export type WriteState = 'idle' | 'pending' | 'saved' | 'rejected' | 'unknown';
+const pendingKey = 'dart-online.pending-command.v3';
 let csrfToken: string | null = null;
+let inFlight = false;
+let writeState: WriteState = 'idle';
 
+export function pendingCommand(): PendingCommand | null {
+  const value = sessionStorage.getItem(pendingKey);
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as PendingCommand;
+    if (typeof parsed.action === 'string' && typeof parsed.body?.command_id === 'string') return parsed;
+  } catch { /* Fail closed: never silently drop an unresolved write. */ }
+  throw new ApiError(0, 'pending-storage-invalid', 'Nie można odczytać niezakończonej operacji. Zachowaj tę kartę i sprawdź historię meczu.');
+}
+export function currentWriteState(): WriteState {
+  return pendingCommand() && !inFlight ? 'unknown' : writeState;
+}
+function announce(state: WriteState) {
+  writeState = state;
+  window.dispatchEvent(new Event('dart-write-state'));
+}
 function endpoint(action: string, query?: Record<string, string | number>): string {
   const url = new URL('./api/index.php', window.location.href);
   url.searchParams.set('action', action);
@@ -37,134 +36,124 @@ function endpoint(action: string, query?: Record<string, string | number>): stri
   return url.toString();
 }
 
-function rememberSession(session: SessionState): SessionState {
-  csrfToken = session.csrf_token;
-  return session;
-}
-
-async function request<T>(
-  action: string,
-  options: { method?: 'GET' | 'POST'; body?: Record<string, unknown>; query?: Record<string, string | number> } = {},
-): Promise<T> {
+async function request<T>(action: string, options: {
+  method?: 'GET' | 'POST'; body?: Record<string, unknown>;
+  query?: Record<string, string | number>; signal?: AbortSignal;
+} = {}): Promise<T> {
   const method = options.method ?? 'GET';
+  const requestCsrfToken = csrfToken;
   const headers = new Headers({ Accept: 'application/json' });
   if (method === 'POST') {
     headers.set('Content-Type', 'application/json');
     if (action !== 'login') {
-      if (!csrfToken) {
-        throw new ApiError(403, 'missing-csrf-token', 'Brak tokenu sesji. Odśwież stronę i zaloguj się ponownie.');
-      }
+      if (!csrfToken) throw new ApiError(403, 'missing-csrf-token', 'Sesja wygasła. Zaloguj się ponownie.');
       headers.set('X-CSRF-Token', csrfToken);
     }
   }
-
-  let response: Response;
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  options.signal?.addEventListener('abort', cancel, { once: true });
+  if (options.signal?.aborted) cancel();
+  const timeout = window.setTimeout(cancel, 8000);
   try {
-    response = await fetch(endpoint(action, options.query), {
-      method,
-      headers,
-      credentials: 'same-origin',
+    const response = await fetch(endpoint(action, options.query), {
+      method, headers, credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+      signal: controller.signal,
       body: method === 'POST' ? JSON.stringify(options.body ?? {}) : undefined,
     });
-  } catch {
-    throw new ApiError(0, 'network-error', 'Nie można połączyć się z API. Sprawdź serwer i połączenie.');
-  }
-
-  let decoded: unknown;
-  try {
-    decoded = await response.json();
-  } catch {
-    throw new ApiError(response.status, 'invalid-response', 'Serwer zwrócił nieprawidłową odpowiedź.');
-  }
-
-  if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
-    throw new ApiError(response.status, 'invalid-response', 'Serwer zwrócił nieprawidłową odpowiedź.');
-  }
-
-  const payload = decoded as ApiSuccess<T> | ApiFailure;
-
-  if (!response.ok || payload.ok !== true) {
-    const failure = payload as ApiFailure;
-    const error = failure.error ?? { code: 'request-failed', message: 'Operacja nie powiodła się.' };
-    if (response.status === 401 || response.status === 403) {
-      csrfToken = null;
+    let payload: any;
+    try { payload = await response.json(); }
+    catch { throw new ApiError(response.status, 'invalid-response', 'Nie udało się odczytać odpowiedzi serwera.'); }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.ok !== 'boolean') {
+      throw new ApiError(response.status, 'invalid-response', 'Serwer zwrócił nieprawidłową odpowiedź.');
     }
-    throw new ApiError(response.status, error.code, error.message, error.details);
+    if (!response.ok || payload.ok !== true) {
+      const error = payload.error ?? { code: 'request-failed', message: 'Operacja nie powiodła się.' };
+      if (response.status === 401 && csrfToken === requestCsrfToken) csrfToken = null;
+      throw new ApiError(response.status, error.code, error.message, error.details);
+    }
+    return payload.data as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(0, 'network-error', 'Brak odpowiedzi API. Ostatni wynik może być nieaktualny.');
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener('abort', cancel);
   }
-
-  return payload.data;
 }
+function ambiguous(error: unknown): boolean {
+  return !(error instanceof ApiError) || error.status === 0 || error.status >= 500 || error.code === 'invalid-response';
+}
+async function execute<T>(command: PendingCommand): Promise<T> {
+  if (inFlight) throw new ApiError(409, 'write-pending', 'Poczekaj na zakończenie zapisu.');
+  inFlight = true;
+  announce('pending');
+  try {
+    const result = await request<T>(command.action, { method: 'POST', body: command.body });
+    sessionStorage.removeItem(pendingKey);
+    announce('saved');
+    return result;
+  } catch (error) {
+    // Expired auth on a retry cannot establish whether the first attempt committed.
+    if (ambiguous(error) || (error instanceof ApiError && [401, 403].includes(error.status))) {
+      announce('unknown');
+    } else {
+      sessionStorage.removeItem(pendingKey);
+      announce('rejected');
+    }
+    throw error;
+  } finally { inFlight = false; window.dispatchEvent(new Event('dart-write-state')); }
+}
+async function mutate<T>(action: string, body: Record<string, unknown>, revision = 0): Promise<T> {
+  if (pendingCommand() || inFlight) throw new ApiError(409, 'unresolved-command', 'Najpierw sprawdź poprzednią operację przyciskiem „Ponów ten sam zapis”.');
+  const command = { action, body: { ...body, command_id: crypto.randomUUID(), expected_revision: revision }, created_at: new Date().toISOString() };
+  // Persist before transmitting. Storage failure prevents an unsafe write.
+  sessionStorage.setItem(pendingKey, JSON.stringify(command));
+  return execute<T>(command);
+}
+export async function retryPending(): Promise<unknown> {
+  const command = pendingCommand();
+  return command ? execute(command) : null;
+}
+function remember(session: SessionState): SessionState { csrfToken = session.csrf_token; return session; }
 
 export const api = {
-  async session(): Promise<SessionState> {
-    return rememberSession(await request<SessionState>('session'));
-  },
-
-  async login(password: string): Promise<SessionState> {
-    return rememberSession(await request<SessionState>('login', { method: 'POST', body: { password } }));
-  },
-
-  async logout(): Promise<SessionState> {
-    const session = await request<SessionState>('logout', { method: 'POST' });
-    return rememberSession(session);
-  },
-
-  dashboard(): Promise<DashboardData> {
-    return request<DashboardData>('dashboard');
-  },
-
-  createPlayer(name: string): Promise<Player> {
-    return request<Player>('player-create', { method: 'POST', body: { name } });
-  },
-
-  deletePlayer(playerId: number): Promise<{ deleted: true; id: number; name: string }> {
-    return request('player-delete', { method: 'POST', body: { player_id: playerId } });
-  },
-
+  async session(): Promise<SessionState> { return remember(await request('session')); },
+  async login(password: string): Promise<SessionState> { return remember(await request('login', { method: 'POST', body: { password } })); },
+  async logout(): Promise<SessionState> { return remember(await request('logout', { method: 'POST' })); },
+  dashboard(): Promise<DashboardData> { return request('dashboard'); },
+  createPlayer(name: string): Promise<Player> { return mutate('player-create', { name }); },
+  deletePlayer(playerId: number): Promise<{ deleted: true; id: number; name: string }> { return mutate('player-delete', { player_id: playerId }); },
   createGame(player1Id: number, player2Id: number, legsToWin: number, startingScore: number): Promise<GameSnapshot> {
-    return request<GameSnapshot>('game-create', {
-      method: 'POST',
-      body: {
-        player1_id: player1Id,
-        player2_id: player2Id,
-        legs_to_win: legsToWin,
-        starting_score: startingScore,
-      },
-    });
+    return mutate('game-create', { player1_id: player1Id, player2_id: player2Id, legs_to_win: legsToWin, starting_score: startingScore });
   },
-
-  game(gameId: number): Promise<GameSnapshot> {
-    return request<GameSnapshot>('game', { query: { id: gameId } });
+  game(gameId: number, signal?: AbortSignal): Promise<GameSnapshot> { return request('game', { query: { id: gameId }, signal }); },
+  recordVisit(gameId: number, playerId: number, score: number, dartsUsed: number, doubleConfirmed: boolean, revision: number): Promise<GameSnapshot> {
+    return mutate('visit-create', { game_id: gameId, player_id: playerId, score, darts_used: dartsUsed, double_confirmed: doubleConfirmed }, revision);
   },
-
-  recordVisit(
-    gameId: number,
-    playerId: number,
-    score: number,
-    dartsUsed: number,
-    doubleConfirmed: boolean,
-  ): Promise<GameSnapshot> {
-    return request<GameSnapshot>('visit-create', {
-      method: 'POST',
-      body: {
-        game_id: gameId,
-        player_id: playerId,
-        score,
-        darts_used: dartsUsed,
-        double_confirmed: doubleConfirmed,
-      },
-    });
+  dart(gameId: number, playerId: number, field: string, revision: number): Promise<GameSnapshot> {
+    return mutate('dart-create', { game_id: gameId, player_id: playerId, field }, revision);
   },
-
-  undoVisit(gameId: number): Promise<GameSnapshot> {
-    return request<GameSnapshot>('visit-undo', { method: 'POST', body: { game_id: gameId } });
+  correctDart(gameId: number, dartId: string, field: string, revision: number): Promise<GameSnapshot> {
+    return mutate('dart-correct', { game_id: gameId, dart_id: dartId, field }, revision);
   },
-
-  deleteGame(gameId: number): Promise<{ deleted: true; id: number }> {
-    return request('game-delete', { method: 'POST', body: { game_id: gameId } });
+  correctVisit(gameId: number, visitId: number, score: number, dartsUsed: number, doubleConfirmed: boolean, revision: number): Promise<GameSnapshot> {
+    return mutate('visit-correct', { game_id: gameId, visit_id: visitId, score, darts_used: dartsUsed, double_confirmed: doubleConfirmed }, revision);
   },
+  undoVisit(gameId: number, revision: number): Promise<GameSnapshot> { return mutate('visit-undo', { game_id: gameId }, revision); },
+  deleteGame(gameId: number, revision: number): Promise<{ deleted: true; id: number }> { return mutate('game-delete', { game_id: gameId }, revision); },
+  selectCamera(gameId: number, deviceId: string | null, revision: number): Promise<GameSnapshot> {
+    return mutate('camera-select', { game_id: gameId, device_id: deviceId }, revision);
+  },
+  review(gameId: number, observationId: string, decision: 'accept' | 'reject', field: string, revision: number): Promise<GameSnapshot> {
+    return mutate('observation-review', { game_id: gameId, observation_id: observationId, decision, ...(decision === 'accept' ? { field } : {}) }, revision);
+  },
+  devices(): Promise<{ devices: Device[] }> { return request('devices'); },
+  pairCode(role: Device['role'], gameId: number | null, hours: number): Promise<{ code: string; expires_at: number; role: string; game_id: number | null }> {
+    return mutate('device-code-create', { role, game_id: gameId, expires_hours: hours });
+  },
+  revoke(deviceId: string): Promise<unknown> { return mutate('device-revoke', { device_id: deviceId }); },
 };
-
 export function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : 'Wystąpił nieoczekiwany błąd.';
 }

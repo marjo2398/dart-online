@@ -44,6 +44,8 @@ export interface Visit {
   is_bust: boolean;
   is_checkout: boolean;
   created_at: string;
+  mode: 'aggregate' | 'darts';
+  is_complete: boolean;
 }
 
 export interface GameState {
@@ -61,6 +63,10 @@ export interface GameState {
   created_at: string;
   updated_at: string;
   finished_at: string | null;
+  revision: number;
+  active_camera_id: string | null;
+  camera_epoch: number;
+  context: GameContext;
 }
 
 export interface GameSnapshot {
@@ -68,6 +74,64 @@ export interface GameSnapshot {
   players: [MatchPlayerState, MatchPlayerState];
   visits: Visit[];
   can_undo: boolean;
+  partial_visit: Visit | null;
+  darts: Dart[];
+  observations: Observation[];
+  devices: Device[];
+  audit: AuditEntry[];
+}
+
+export interface GameContext {
+  revision: number;
+  player_id: number | null;
+  leg_no: number;
+  visit_no: number;
+  dart_no: number;
+  camera_epoch: number;
+}
+
+export interface Device {
+  id: string;
+  name: string;
+  role: 'operator' | 'viewer' | 'camera';
+  game_id: number | null;
+  expires_at: number;
+  revoked: boolean;
+}
+
+export interface Dart {
+  id: string;
+  game_id: number;
+  leg_no: number;
+  visit_id: number;
+  visit_no: number;
+  player_id: number;
+  dart_no: number;
+  field: string;
+  source: string;
+  device_id: string | null;
+  observation_id: string | null;
+  created_at: string;
+  active: boolean;
+}
+
+export interface Observation extends GameContext {
+  id: string;
+  game_id: number;
+  device_id: string;
+  field: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'stale';
+  created_at: string;
+  accepted_dart_id: string | null;
+  accepted_revision: number | null;
+}
+
+export interface AuditEntry {
+  id: number;
+  command_id: string;
+  action: string;
+  target_id: string | null;
+  created_at: string;
 }
 
 export interface GameSummary {

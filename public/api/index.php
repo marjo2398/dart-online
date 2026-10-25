@@ -8,6 +8,8 @@ const LOGIN_WINDOW_SECONDS = 900;
 const ALLOWED_STARTING_SCORES = [301, 501, 701, 901];
 const ALLOWED_LEGS_TO_WIN = [1, 2, 3, 5];
 
+require_once __DIR__ . '/sync.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
 header('Pragma: no-cache');
@@ -40,6 +42,8 @@ function sendJson(int $status, array $payload): void
 
 function sendData(array $data, int $status = 200): void
 {
+    global $database;
+    if ($database instanceof PDO && $database->inTransaction()) { $database->commit(); }
     sendJson($status, ['ok' => true, 'data' => $data]);
 }
 
@@ -83,7 +87,7 @@ function readJsonBody(): array
         problem(400, 'invalid-json', 'Nieprawidłowy format JSON.');
     }
 
-    if (!is_array($decoded)) {
+    if (!is_array($decoded) || substr(ltrim($raw), 0, 1) !== '{') {
         problem(400, 'invalid-json-object', 'Treść żądania musi być obiektem JSON.');
     }
 
@@ -238,6 +242,10 @@ function ensureColumn(PDO $pdo, string $table, string $column, string $definitio
 
 function migrateDatabase(PDO $pdo): void
 {
+    if (tableExists($pdo, 'schema_meta') && (int) $pdo->query("SELECT value FROM schema_meta WHERE key = 'schema_version'")->fetchColumn() >= 3) {
+        return;
+    }
+    transaction($pdo, static function () use ($pdo): void {
     $pdo->exec(<<<'SQL'
         CREATE TABLE IF NOT EXISTS schema_meta (
             key TEXT PRIMARY KEY,
@@ -343,6 +351,8 @@ function migrateDatabase(PDO $pdo): void
             $statement->execute();
         });
     }
+    migrateSync($pdo);
+    });
 }
 
 function migrateLegacyThrows(PDO $pdo): void
@@ -475,16 +485,23 @@ function rebuildAllPlayerStats(PDO $pdo): void
 
 function transaction(PDO $pdo, callable $callback)
 {
-    $pdo->beginTransaction();
+    static $depth = [];
+    $id = spl_object_hash($pdo);
+    if (($depth[$id] ?? 0) > 0) {
+        return $callback();
+    }
+    // PDO on PHP 7.4 does not track an explicit BEGIN IMMEDIATE transaction.
+    $pdo->exec('BEGIN IMMEDIATE');
+    $depth[$id] = 1;
     try {
         $result = $callback();
-        $pdo->commit();
+        $pdo->exec('COMMIT');
         return $result;
     } catch (Throwable $exception) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
+        $pdo->exec('ROLLBACK');
         throw $exception;
+    } finally {
+        unset($depth[$id]);
     }
 }
 
@@ -629,6 +646,8 @@ function normalizeVisit(array $row): array
         'is_bust' => (bool) $row['is_bust'],
         'is_checkout' => (bool) $row['is_checkout'],
         'created_at' => (string) $row['created_at'],
+        'mode' => (string) ($row['mode'] ?? 'aggregate'),
+        'is_complete' => (bool) ($row['is_complete'] ?? true),
     ];
 }
 
@@ -705,8 +724,10 @@ function replayGame(array $game, array $visits): array
                 $currentLegDarts = [$p1 => 0, $p2 => 0];
                 $currentPlayer = $currentLeg % 2 === 1 ? $p1 : $p2;
             }
-        } elseif ($derivedWinner === null) {
+        } elseif ($derivedWinner === null && ($visit['is_complete'] ?? true)) {
             $currentPlayer = $playerId === $p1 ? $p2 : $p1;
+        } elseif ($derivedWinner === null) {
+            $currentPlayer = $playerId;
         }
     }
 
@@ -759,7 +780,8 @@ function replayGame(array $game, array $visits): array
 
 function fetchGameSnapshot(PDO $pdo, int $gameId): array
 {
-    return replayGame(fetchGameRow($pdo, $gameId), fetchGameVisits($pdo, $gameId));
+    $row = fetchGameRow($pdo, $gameId);
+    return enrichSnapshot($pdo, $row, replayGame($row, fetchGameVisits($pdo, $gameId)));
 }
 
 function snapshotSummary(array $snapshot): array
@@ -1020,6 +1042,9 @@ function recordVisit(PDO $pdo, array $input): array
 
     return transaction($pdo, static function () use ($pdo, $gameId, $playerId, $score, $dartsUsed, $doubleConfirmed): array {
         $snapshot = fetchGameSnapshot($pdo, $gameId);
+        if ($snapshot['partial_visit'] !== null) {
+            problem(409, 'partial-visit-exists', 'Dokończ pojedyncze lotki albo cofnij je przed wpisaniem całej sumy.');
+        }
         if ($snapshot['game']['winner_id'] !== null) {
             problem(409, 'game-finished', 'Ten mecz jest już zakończony. Możesz cofnąć ostatnią wizytę.');
         }
@@ -1147,9 +1172,15 @@ function deleteGame(PDO $pdo, int $gameId): array
     });
 }
 
+if (defined('DART_API_LIBRARY_ONLY')) { return; }
+
 try {
     $configuration = loadConfiguration();
-    configureSession($configuration);
+    if (($configuration['secure_cookie'] ?? true) && strtolower((string) ($_SERVER['HTTPS'] ?? '')) !== 'on' && (int) ($_SERVER['SERVER_PORT'] ?? 0) !== 443) {
+        problem(400, 'https-required', 'Wymagane jest bezpieczne połączenie HTTPS.');
+    }
+    $hasBearer = isset($_SERVER['HTTP_AUTHORIZATION']) || isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
+    if (!$hasBearer) { configureSession($configuration); }
     $database = openDatabase();
     migrateDatabase($database);
 
@@ -1163,17 +1194,33 @@ try {
         requireMethod('POST');
         sendData(login($database, $configuration));
     }
-
-    requireAuthentication();
-
+    if ($action === 'device-join') {
+        requireMethod('POST');
+        sendData(joinDevice($database, readJsonBody()));
+    }
+    $actor = authenticateActor($database);
     if ($action === 'logout') {
         requireMethod('POST');
         requireCsrf();
         sendData(logout());
     }
+    // Release the PHP session file lock. SQLite, not a shared session, serializes writes.
+    if (session_status() === PHP_SESSION_ACTIVE) { session_write_close(); }
+    // A snapshot consists of several SELECTs: pin one WAL read view across all of them.
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'GET') { $database->beginTransaction(); }
     if ($action === 'dashboard') {
         requireMethod('GET');
-        sendData(getDashboard($database));
+        $data = getDashboard($database);
+        $assigned = $actor['device']['game_id'] ?? null;
+        if ($assigned !== null) {
+            $snapshot = fetchGameSnapshot($database, $assigned);
+            $ids = [$snapshot['game']['player1_id'], $snapshot['game']['player2_id']];
+            $data['players'] = array_values(array_filter($data['players'], static fn(array $p): bool => in_array($p['id'], $ids, true)));
+            foreach (['active_games','history'] as $key) {
+                $data[$key] = array_values(array_filter($data[$key], static fn(array $g): bool => $g['id'] === $assigned));
+            }
+        }
+        sendData($data);
     }
     if ($action === 'game') {
         requireMethod('GET');
@@ -1181,36 +1228,39 @@ try {
         if (!is_int($gameId)) {
             problem(422, 'invalid-game-id', 'Podaj prawidłowy identyfikator meczu.');
         }
+        assertScope($actor, $gameId);
         sendData(fetchGameSnapshot($database, $gameId));
+    }
+    if ($action === 'devices') {
+        requireMethod('GET');
+        if ($actor['role'] !== 'admin') { problem(403,'admin-required','Wymagany administrator.'); }
+        sendData(['devices' => array_map('publicDevice', sqlRows($database,'SELECT * FROM devices ORDER BY name,id'))]);
+    }
+    if ($action === 'device-self') {
+        requireMethod('GET');
+        if (!$actor['device']) { problem(403,'device-required','Wymagane urządzenie.'); }
+        sendData(['device' => $actor['device']]);
+    }
+    if ($action === 'command-status') {
+        requireMethod('GET');
+        $commandId = requiredUuid($_GET, 'command_id');
+        $saved = sqlOne($database, 'SELECT game_id,result FROM commands WHERE actor=? AND command_id=?', [$actor['actor'],$commandId]);
+        if ($saved && $saved['game_id'] !== null) { assertScope($actor,(int)$saved['game_id']); }
+        sendData($saved ? ['status'=>'saved','result'=>json_decode($saved['result'],true,512,JSON_THROW_ON_ERROR)] : ['status'=>'unknown']);
+    }
+    if ($action === 'observation-status') {
+        requireMethod('GET');
+        $gameId = requiredInt($_GET,'game_id',1,PHP_INT_MAX);
+        assertScope($actor,$gameId);
+        $row = sqlOne($database,'SELECT * FROM observations WHERE game_id=? AND id=?',[$gameId,requiredUuid($_GET,'observation_id')]);
+        if (!$row) { problem(404,'observation-not-found','Brak obserwacji.'); }
+        sendData(normalizeObservation($row));
     }
 
     requireMethod('POST');
-    requireCsrf();
+    if (!$hasBearer) { requireCsrf(); }
     $body = readJsonBody();
-
-    if ($action === 'player-create') {
-        sendData(createPlayer($database, $body), 201);
-    }
-    if ($action === 'player-delete') {
-        sendData(deletePlayer($database, requiredInt($body, 'player_id', 1, PHP_INT_MAX)));
-    }
-    if ($action === 'game-create') {
-        sendData(createGame($database, $body), 201);
-    }
-    if ($action === 'visit-create') {
-        sendData(recordVisit($database, $body), 201);
-    }
-    if ($action === 'visit-undo') {
-        sendData(undoLastVisit($database, requiredInt($body, 'game_id', 1, PHP_INT_MAX)));
-    }
-    if ($action === 'game-finish') {
-        sendData(finishCompletedGame($database, requiredInt($body, 'game_id', 1, PHP_INT_MAX)));
-    }
-    if ($action === 'game-delete') {
-        sendData(deleteGame($database, requiredInt($body, 'game_id', 1, PHP_INT_MAX)));
-    }
-
-    problem(404, 'unknown-action', 'Nieznana operacja API.');
+    sendData(runCommand($database, $action, $body));
 } catch (ApiProblem $exception) {
     $error = [
         'code' => $exception->errorCode,

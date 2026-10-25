@@ -2,7 +2,29 @@
 
 > Dokument startowy dla kolejnych modyfikacji. Najpierw przeczytaj ten plik, potem sprawdź tylko pliki związane z planowaną zmianą. Pełny audyt jest potrzebny dopiero wtedy, gdy kod, wdrożenie lub opis poniżej przestaną się zgadzać.
 
-## Metryka stanu
+## Integracja WWW/APK — 25.10.2026, wdrożenie w toku
+
+Baza prac: `ef9c07edfe5c713696f11d103ff7712b268c1822`, gałąź `feature/apk-integration-20261025`. Repozytorium pozostaje PHP 7.4+/SQLite; docelowy adres **https://host749284.xce.pl/dart/**. Zakres hostingu: wyłącznie potwierdzony `public_html/dart` i prywatne kopie projektu poza `public_html`, bez globalnych zmian PHP i bez migracji do MySQL. Osobny panel `dartlens.host749284.xce.pl` nie należy do tej integracji.
+
+Kod `public/api/index.php` i `sync.php` implementuje migrację schematu v3 zachowującą istniejących graczy/mecze/wizyty, szczegółowe lotki i częściowe wizyty, rewizje, transakcyjną deduplikację komend, cofanie/korektę ostatniego wpisu i audyt. WWW oraz natywny APK korzystają z tego samego stanu serwera. APK otrzymuje odwoływalny, wygasający dostęp operatora/kamery/widza przez jednorazowy kod. Jedna aktywna kamera publikuje propozycje z kontekstem; obraz nie jest wysyłany, a punkty zmienia dopiero decyzja operatora. [Kontrakt API](docs/API.md).
+
+Klient WWW odświeża stan meczu, ignoruje stare odpowiedzi, sygnalizuje nieaktualność połączenia i blokuje wtedy zapisy. Dziennik oczekującej komendy w `sessionStorage` pozwala ponowić identyczny zapis po utracie odpowiedzi lub przeładowaniu. Konflikt rewizji wymaga sprawdzenia aktualnego stanu przed nową komendą. Kontrolki obsługują sumy, pojedyncze lotki, korekty, wybór kamery, przegląd odczytów i zarządzanie urządzeniami.
+
+| Weryfikacja | Wynik i granica dowodu |
+|---|---|
+| API na rzeczywistym PHP 7.4/SQLite | 19/19 scenariuszy PASS w poprzednim lokalnym przebiegu: migracja i zachowanie danych, formaty/checkout/bust, deduplikacja, dwa procesy i konflikty, role/TTL, rollback błędu INSERT, restart |
+| Klient WWW z kontrolowanym serwerem HTTP | 9 kontroli PASS: m.in. utrata odpowiedzi, trwały pending, identyczne ponowienie, konflikt rewizji i ochrona sesji |
+| TypeScript / Vite | `npm run lint` i `npm run build` PASS |
+| Spójna kopia SQLite | 6/6 scenariuszy PASS na PHP 7.4: SQLite3 backup i PDO VACUUM INTO z WAL, konfiguracja/klucz, odmowa nadpisania i publicznego celu, baza sprzed migracji |
+| Bieżące APK 1.0.0 | 300/300 testów, assembleRelease, lintRelease i kontrola podpisu/ABI/16KiB PASS; sprzęt nieweryfikowany |
+| Aktualizacja produkcji | Wdrożono pięć plików aplikacji po prywatnej kopii SQLite/config/kodu. HTML/JS/CSS HTTP200 i zgodne SHA256, API session HTTP200. Zalogowana próba produkcyjna oczekuje |
+| Telefony, aparat i rzeczywista gra | Niewykonane; testy HTTP/JVM nie potwierdzają trafności rozpoznawania ani stabilności sprzętu |
+
+Przed pierwszym żądaniem nowego API na produkcji wykonać i potwierdzić spójną kopię bazy wraz z `config.local.php` i ewentualnym `device-secret.bin` poza `public_html`. `tools/backup.php` działa tylko w CLI, blokuje zapisy na czas obrazu, sprawdza integralność/liczby rekordów i zapisuje manifest. Selektywna aktualizacja musi zachować całą produkcyjną konfigurację i `api/data/`. Dokładna procedura: [DEPLOY_HOSTIDO.md](DEPLOY_HOSTIDO.md).
+
+Następne kroki: zakończyć testy/wydanie APK, wykonać kopię i wdrożenie po uzyskaniu dostępu do Hostido, sprawdzić docelowe HTTPS i zgodność dwóch klientów na wydzielonym meczu testowym. Następnie próby P0 telefonów według `dart-lens/docs/DEVICE_TESTS.md`. Nie deklarować zakończenia na podstawie samych lokalnych testów. Stare wpisy poniżej są zachowane jako historia, nie opis aktualnej gałęzi i integracji.
+
+## Historyczna metryka — 23.08.2026
 
 | Pole | Wartość |
 |---|---|

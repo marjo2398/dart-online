@@ -14,16 +14,20 @@ import {
   X,
 } from 'lucide-react';
 import { ApiError, api, messageFrom } from '../api';
+import DartControls from './DartControls';
+import Devices from './Devices';
+import WriteStatus, { useWriteState } from './WriteStatus';
 import type { GameSnapshot, MatchPlayerState, Visit } from '../types';
 
 interface DartGameProps {
   initialSnapshot: GameSnapshot;
   onExit: () => Promise<void>;
+  onSessionExpired: () => void;
 }
 
 type PendingVisit =
-  | { stage: 'double'; score: number }
-  | { stage: 'darts'; score: number; doubleConfirmed: boolean; outcome: 'checkout' | 'bust' };
+  | { stage: 'double'; score: number; revision: number }
+  | { stage: 'darts'; score: number; revision: number; doubleConfirmed: boolean; outcome: 'checkout' | 'bust' };
 
 type Recognition = {
   continuous: boolean;
@@ -146,7 +150,7 @@ function PlayerBoard({ player, active, visits }: { player: MatchPlayerState; act
   );
 }
 
-export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
+export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: DartGameProps) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [inputValue, setInputValue] = useState('');
   const [pendingVisit, setPendingVisit] = useState<PendingVisit | null>(null);
@@ -158,6 +162,11 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [fresh, setFresh] = useState(true);
+  const writeState = useWriteState();
+  const writesDisabled = busy || !fresh || writeState === 'unknown' || writeState === 'pending';
+  const snapshotRef = useRef(initialSnapshot);
+  const generationRef = useRef(0);
 
   const busyRef = useRef(false);
   const listeningRef = useRef(false);
@@ -171,10 +180,56 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
   const currentLegVisits = snapshot.visits.filter((visit) => visit.leg_no === snapshot.game.current_leg);
   const visitsFor = (playerId: number) => currentLegVisits.filter((visit) => visit.player_id === playerId).slice(-3);
 
+  const installSnapshot = (next: GameSnapshot, remote = false) => {
+    if (next.game.id !== snapshotRef.current.game.id || next.game.revision < snapshotRef.current.game.revision) return;
+    if (remote && next.game.revision !== snapshotRef.current.game.revision) {
+      setPendingVisit(null); setInputValue('');
+    }
+    snapshotRef.current = next;
+    setSnapshot(next);
+  };
+  const authError = (caught: unknown) => {
+    if (caught instanceof ApiError && (caught.status === 401 || caught.code.includes('csrf'))) onSessionExpired();
+  };
+  useEffect(() => {
+    let stopped = false;
+    let failures = 0;
+    let running = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let controller: AbortController | null = null;
+    const poll = async () => {
+      if (stopped || running) return;
+      running = true;
+      const generation = generationRef.current;
+      controller = new AbortController();
+      try {
+        const next = await api.game(initialSnapshot.game.id, controller.signal);
+        if (stopped) return;
+        failures = 0; setFresh(true);
+        if (generation === generationRef.current && !busyRef.current) installSnapshot(next, true);
+      } catch (caught) {
+        if (stopped) return;
+        failures++; setFresh(false); setPendingVisit(null);
+        authError(caught);
+      } finally {
+        running = false;
+        if (!stopped) timer = setTimeout(poll, failures ? Math.min(15000, 1000 * 2 ** Math.min(failures, 4)) : document.hidden ? 5000 : 750);
+      }
+    };
+    const wake = () => { if (!running && !stopped) { clearTimeout(timer); void poll(); } };
+    void poll();
+    window.addEventListener('online', wake);
+    document.addEventListener('visibilitychange', wake);
+    return () => {
+      stopped = true; clearTimeout(timer); controller?.abort(); generationRef.current++;
+      window.removeEventListener('online', wake); document.removeEventListener('visibilitychange', wake);
+    };
+  }, [initialSnapshot.game.id]);
+
   const syncAfterConflict = async (caught: unknown) => {
     if (caught instanceof ApiError && caught.status === 409) {
       try {
-        setSnapshot(await api.game(snapshot.game.id));
+        installSnapshot(await api.game(snapshot.game.id), true);
       } catch {
         // Pierwotny komunikat jest bardziej użyteczny; kolejne odświeżenie nastąpi przy powrocie do panelu.
       }
@@ -184,12 +239,14 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
   const withLock = async (operation: () => Promise<void>) => {
     if (busyRef.current) return;
     busyRef.current = true;
+    generationRef.current++;
     setBusy(true);
     setError(null);
     try {
       await operation();
     } catch (caught) {
       setError(messageFrom(caught));
+      authError(caught);
       await syncAfterConflict(caught);
     } finally {
       busyRef.current = false;
@@ -215,10 +272,13 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
   };
 
   const sendVisit = async (score: number, dartsUsed: number, doubleConfirmed: boolean) => {
-    if (!currentPlayer || snapshot.game.status === 'finished') return;
+    if (writesDisabled || !currentPlayer || snapshot.game.status === 'finished' || snapshot.partial_visit) return;
+    if (pendingVisit && pendingVisit.revision !== snapshotRef.current.game.revision) {
+      setPendingVisit(null); setError('Mecz zmienił się na innym urządzeniu. Sprawdź turę i wpisz wynik ponownie.'); return;
+    }
     await withLock(async () => {
-      const next = await api.recordVisit(snapshot.game.id, currentPlayer.id, score, dartsUsed, doubleConfirmed);
-      setSnapshot(next);
+      const next = await api.recordVisit(snapshot.game.id, currentPlayer.id, score, dartsUsed, doubleConfirmed, snapshot.game.revision);
+      installSnapshot(next);
       setRefereeMessage(describeSnapshot(next));
       setInputValue('');
       setPendingVisit(null);
@@ -226,7 +286,7 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
   };
 
   const beginScore = async (score: number) => {
-    if (busyRef.current || pendingVisit || !currentPlayer) return;
+    if (writesDisabled || busyRef.current || pendingVisit || !currentPlayer || snapshot.partial_visit) return;
     if (!Number.isInteger(score) || score < 0 || score > 180) {
       setError('Wynik wizyty musi być liczbą całkowitą od 0 do 180.');
       return;
@@ -235,11 +295,11 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
     setError(null);
     const remainingAfter = currentPlayer.remaining - score;
     if (remainingAfter === 0) {
-      setPendingVisit({ stage: 'double', score });
+      setPendingVisit({ stage: 'double', score, revision: snapshot.game.revision });
       return;
     }
     if (remainingAfter < 0 || remainingAfter === 1) {
-      setPendingVisit({ stage: 'darts', score, doubleConfirmed: false, outcome: 'bust' });
+      setPendingVisit({ stage: 'darts', score, revision: snapshot.game.revision, doubleConfirmed: false, outcome: 'bust' });
       return;
     }
     await sendVisit(score, 3, false);
@@ -256,24 +316,35 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
     setPendingVisit({
       stage: 'darts',
       score: pendingVisit.score,
+      revision: pendingVisit.revision,
       doubleConfirmed: confirmed,
       outcome: confirmed ? 'checkout' : 'bust',
     });
   };
 
   const handleUndo = async () => {
-    if (!snapshot.can_undo) return;
+    if (writesDisabled || !snapshot.can_undo) return;
     const undone = snapshot.visits.at(-1);
     await withLock(async () => {
-      const next = await api.undoVisit(snapshot.game.id);
-      setSnapshot(next);
+      const next = await api.undoVisit(snapshot.game.id, snapshot.game.revision);
+      installSnapshot(next);
       setPendingVisit(null);
-      setRefereeMessage(undone ? `Cofnięto wizytę ${undone.declared_score}, ${undone.darts_used} lotki.` : 'Cofnięto ostatnią wizytę.');
+      setRefereeMessage(undone?.mode === 'darts' ? 'Cofnięto ostatnią lotkę.' : 'Cofnięto ostatnią wizytę.');
     });
   };
 
   const handleExit = async () => {
     await withLock(onExit);
+  };
+  const runCommand = async (operation: () => Promise<GameSnapshot>) => {
+    if (writesDisabled) return;
+    await withLock(async () => {
+      installSnapshot(await operation()); setInputValue(''); setPendingVisit(null);
+    });
+  };
+  const recover = async () => {
+    generationRef.current++;
+    installSnapshot(await api.game(snapshot.game.id), true); setFresh(true);
   };
 
   const handleVoiceCommand = async (rawCommand: string) => {
@@ -425,6 +496,9 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
         </div>
       </header>
 
+      <p className={fresh ? 'sync-status' : 'sync-status sync-warning'} role="status">{fresh ? `Połączono · rewizja ${snapshot.game.revision}` : 'Brak połączenia — ostatni wynik jest nieaktualny. Zapisy wstrzymane.'}</p>
+      <WriteStatus onRecovered={recover} onAuthError={authError} />
+
       <section className="referee-strip" aria-live="polite">
         <div><span>Wirtualny sędzia</span><strong>{refereeMessage}</strong></div>
         <p>Leg {snapshot.game.current_leg} z maks. {snapshot.game.max_legs} · zaczynał {legStarter.name}</p>
@@ -464,10 +538,10 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
                 value={inputValue}
                 onChange={(event) => setInputValue(event.target.value)}
                 placeholder="0–180"
-                disabled={busy || pendingVisit !== null}
+                disabled={writesDisabled || pendingVisit !== null || snapshot.partial_visit !== null}
                 autoComplete="off"
               />
-              <button className="button button-primary score-submit" type="submit" disabled={busy || pendingVisit !== null || inputValue.trim() === ''}>
+              <button className="button button-primary score-submit" type="submit" disabled={writesDisabled || pendingVisit !== null || snapshot.partial_visit !== null || inputValue.trim() === ''}>
                 {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
                 <span>Zapisz</span>
               </button>
@@ -482,19 +556,21 @@ export default function DartGame({ initialSnapshot, onExit }: DartGameProps) {
             type="button"
             className={`button ${isListening ? 'button-danger' : 'button-secondary'}`}
             onClick={toggleListening}
-            disabled={!voiceAvailable || busy || snapshot.game.status === 'finished'}
+            disabled={!voiceAvailable || writesDisabled || snapshot.game.status === 'finished'}
             title={voiceAvailable ? 'Komendy: „wynik 60”, „cofnij”' : 'Ta przeglądarka nie obsługuje rozpoznawania mowy'}
           >
             {isListening ? <Mic aria-hidden="true" /> : <MicOff aria-hidden="true" />}
             {isListening ? 'Nasłuchuję…' : voiceAvailable ? 'Mikrofon' : 'Brak mikrofonu'}
           </button>
-          <button className="button button-secondary" type="button" disabled={busy || !snapshot.can_undo} onClick={handleUndo}>
+          <button className="button button-secondary" type="button" disabled={writesDisabled || !snapshot.can_undo} onClick={handleUndo}>
             {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
-            Cofnij ostatnią wizytę
+            Cofnij ostatni zapis
           </button>
         </div>
         <p className="voice-hint">Komendy po polsku: „wynik sześćdziesiąt”, „wynik 180”, „cofnij”.</p>
       </section>
+      <DartControls snapshot={snapshot} disabled={writesDisabled} run={runCommand} />
+      <Devices gameId={snapshot.game.id} />
     </main>
   );
 }

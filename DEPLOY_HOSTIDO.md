@@ -1,6 +1,6 @@
 # Wdrożenie na Hostido
 
-Instrukcja zakłada zwykły hosting LiteSpeed/PHP i adres `https://twoja-domena.pl/dart/`. Aplikacja nie wymaga procesu Node.js na serwerze ani `mod_rewrite`.
+Docelowy panel to `https://host749284.xce.pl/dart/`, PHP/SQLite. Wdrożenie obejmuje wyłącznie potwierdzony katalog `public_html/dart` i prywatne kopie tego projektu poza `public_html`. Nie zmieniaj innych stron ani globalnej wersji PHP domeny. Aplikacja nie wymaga procesu Node.js na serwerze ani `mod_rewrite`. Ta instrukcja nie jest potwierdzeniem wdrożenia; aktualny wynik zapisujemy w `PROJECT_STATE.md`.
 
 ## 1. Środowisko PHP
 
@@ -9,7 +9,8 @@ Aplikacja obsługuje PHP 7.4 lub nowszy. Upewnij się, że dostępne jest `PDO S
 ## 2. Budowanie lokalne
 
 ```bash
-npm install
+npm ci
+npm run lint
 npm run build
 ```
 
@@ -72,20 +73,33 @@ https://twoja-domena.pl/dart/
 
 Zaloguj się, dodaj dwóch zawodników i rozpocznij mecz. Mikrofon wymaga HTTPS, zgody przeglądarki i wsparcia Web Speech API; wyniki zawsze można wpisywać ręcznie.
 
-## Aktualizacja
+## Aktualizacja istniejącego panelu i kopia przed migracją
 
-Wgrywaj nową zawartość `dist/`, ale nie usuwaj z serwera:
+1. Potwierdź rzeczywisty katalog domeny i `dart/api` w DirectAdmin/SSH; nie wyprowadzaj ścieżki wyłącznie z adresu URL. Umów przerwę w grze na wdrożenie. Zachowaj poza katalogiem publicznym także poprzednie pliki aplikacji do ewentualnego wycofania kodu.
+2. Skopiuj `tools/backup.php` do prywatnego katalogu konta. Uruchom **CLI**, nie przez HTTP, przed wgraniem nowego backendu i pierwszym żądaniem uruchamiającym migrację. Katalog nadrzędny kopii musi już istnieć; katalog docelowy musi być nowy. Przykład wymaga podstawienia wcześniej potwierdzonych ścieżek:
 
-- `api/config.local.php`;
-- `api/data/dart-online.sqlite`;
-- `api/data/dart-online.sqlite-wal` i `api/data/dart-online.sqlite-shm`, jeśli istnieją.
+   ```bash
+   php /potwierdzona/sciezka/prywatna/backup.php \
+     --api-dir=/potwierdzona/sciezka/public_html/dart/api \
+     --public-root=/potwierdzona/sciezka/public_html \
+     --destination=/potwierdzona/sciezka/prywatna/kopie/dart-YYYYMMDD-HHMMSS
+   ```
 
-API migruje schemat automatycznie. Przed aktualizacją wykonaj kopię całego `api/data/` oraz `api/config.local.php` poza katalogiem publicznym. Kopię SQLite najlepiej robić bez aktywnych użytkowników i obejmować jednocześnie `.sqlite`, `-wal` i `-shm`.
+   Potrzebne `pdo_sqlite` i `SQLite3::backup()` albo SQLite ≥3.27 z `VACUUM INTO`. Skrypt blokuje zapisy na czas wykonania spójnego obrazu, kopiuje zatwierdzone dane również z WAL, zachowuje `config.local.php` i istniejący `data/device-secret.bin`. Weryfikuje `integrity_check` i liczby rekordów, zapisuje SHA-256 oraz metodę w `backup-manifest.json`. Źródła nie są modyfikowane. Nie zastępuj tego kopiowaniem aktywnych plików `.sqlite`, `-wal`, `-shm` oddzielnie.
+
+3. Wymagaj kodu wyjścia 0, komunikatu `Backup verified` i manifestu `integrity_check=ok`. Nieukończona kopia pozostaje prywatna do diagnostyki; nie używaj jej do odtworzenia i nie kontynuuj migracji. Przez panel bez terminala można uruchomić identyczne polecenie jednorazowym zadaniem CRON, zachowując wynik poza katalogiem publicznym; po sprawdzeniu wyniku usuń wyłącznie własne zadanie.
+4. Wgraj selektywnie `dist/index.html`, nowe pliki `dist/assets/`, `dist/api/index.php`, `dist/api/sync.php`, `dist/api/.htaccess` i `dist/api/data/.htaccess`. Najpierw zasoby, następnie komplet backendu, na końcu `index.html`. Nie uruchamiaj synchronizacji z usuwaniem plików. Nie zastępuj katalogu `api/data/` pustym katalogiem z paczki. Zachowaj stare zasoby na czas otwartych sesji.
+5. **Zachowaj bez zmian** produkcyjne `api/config.local.php`, cały `api/data/` (SQLite, WAL, SHM oraz `device-secret.bin`) i pozostałe pliki prywatne. Nie wgrywaj lokalnej bazy testowej, konfiguracji, sekretów, narzędzi CLI ani `backendtests/`. Sekret urządzeń jest potrzebny do zachowania powtarzalnego dołączenia urządzenia; nie generuj go ponownie podczas aktualizacji.
+6. Pierwsze żądanie API wykonuje migrację schematu w transakcji. Sprawdź HTTPS, logowanie, istniejących graczy/identyfikatory/mecze/statystyki i zasoby JS/CSS. W odrębnym meczu testowym sprawdź WWW/APK: ręczny zapis, cofnięcie, korektę i zgodny stan dwóch klientów. Zweryfikuj odmowę pobrania konfiguracji, SQLite i sekretu przez HTTP. Zapisz osobno wynik wdrożenia i rzeczywistych prób telefonu — lokalny test API ich nie zastępuje.
+
+W razie błędu przerwij zapisy i zachowaj log bez tokenów/hasła. Samo cofnięcie plików PHP nie cofa schematu bazy. Odtworzenie wykonuj w przerwie bez procesów korzystających z SQLite: odłóż obecną bazę wraz z WAL/SHM do osobnego prywatnego katalogu, odtwórz spójny zestaw z ukończonej kopii i zgodny kod. Nie łącz odtworzonej bazy ze starym WAL/SHM. Odtworzenie starszej kopii pomija późniejsze zapisy — przed nim sprawdź zakres utraty i uzyskaj decyzję właściciela.
+
+Lokalna kontrola narzędzia kopii (na odrębnych bazach testowych): `php -d extension=pdo_sqlite -d extension=sqlite3 tools/test-backup.php`. Na Windows ustaw dodatkowo `extension_dir` właściwego PHP.
 
 ## Typowe problemy
 
 - **„API nie jest jeszcze skonfigurowane”** — brakuje `api/config.local.php` lub prawidłowego `password_hash`.
-- **„PDO SQLite niedostępne”** — włącz `pdo_sqlite` albo zmień wersję PHP w panelu.
+- **„PDO SQLite niedostępne”** — sprawdź `pdo_sqlite` dla tej aplikacji z administratorem hostingu; nie zmieniaj globalnej wersji PHP domeny.
 - **„Katalog api/data nie jest zapisywalny”** — popraw właściciela lub uprawnienia.
 - **Logowanie wraca do formularza** — sprawdź HTTPS, `secure_cookie => true` i obsługę ciasteczek.
 - **Mikrofon jest nieaktywny** — brak Web Speech API albo zgody na mikrofon.
