@@ -28,6 +28,8 @@ Przed pierwszym żądaniem nowego API na produkcji wykonać i potwierdzić spój
 
 Następne kroki: produkcyjna próba parowania/obserwacji kamery i próby P0 telefonów według `dart-lens/docs/DEVICE_TESTS.md`. Nie deklarować zakończenia na podstawie samych lokalnych testów. Stare wpisy poniżej są zachowane jako historia, nie opis aktualnej gałęzi i integracji.
 
+Wdrożenie WWW/API jest zakończone; oczekująca próba kamery oznacza brak weryfikacji produkcyjnej, nie brak kodu na serwerze. Po P0/P1 telefonów wykonać pilot P2 (≥200 opisanych rzutów i ≥30min). Po zaliczeniu całej listy, w tym kamery na docelowym HTTPS, zapisać wyniki i zamknąć odbiór1.0.0 jako wydania wspomaganego. Dalsze usprawnienia wybrać na podstawie błędów i pomiarów pilota; rozszerzenia zakresu uzgodnić osobno.
+
 ## Historyczna metryka — 23.08.2026
 
 | Pole | Wartość |
