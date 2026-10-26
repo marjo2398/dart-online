@@ -2,7 +2,11 @@
 
 > Dokument startowy dla kolejnych modyfikacji. Najpierw przeczytaj ten plik, potem sprawdź tylko pliki związane z planowaną zmianą. Pełny audyt jest potrzebny dopiero wtedy, gdy kod, wdrożenie lub opis poniżej przestaną się zgadzać.
 
-## Integracja WWW/APK — 25.10.2026, wdrożenie w toku
+## Integracja WWW/APK — 26.10.2026, wdrożone
+
+Aktualizacja: kopia, wdrożenie i wydanie APK ukończone. Zalogowana próba dwóch kart na Hostido PASS: osobny mecz #2 (TEST APK A/B 20261026), 301 → S20/281 → korekta D20/261 → cofnięcie/301; rewizje1/2/3 i audyt zgodne. Oryginalny mecz Marjo–CzornoCzorny zachowany: 501:501, legi0:1, leg2, 14 wizyt. Dane testowe pozostawiono jawnie oznaczone.
+
+Pozostają próby telefonów i produkcyjne parowanie/obserwacja kamery. Utworzono kod kamery tylko dla meczu testowego (ważny10min, dostęp1h); klient HTTP nie dołączył z powodu ograniczeń sieci oraz dwóch timeoutów automatycznego zatwierdzenia narzędzia.
 
 Baza prac: `ef9c07edfe5c713696f11d103ff7712b268c1822`, gałąź `feature/apk-integration-20261025`. Repozytorium pozostaje PHP 7.4+/SQLite; docelowy adres **https://host749284.xce.pl/dart/**. Zakres hostingu: wyłącznie potwierdzony `public_html/dart` i prywatne kopie projektu poza `public_html`, bez globalnych zmian PHP i bez migracji do MySQL. Osobny panel `dartlens.host749284.xce.pl` nie należy do tej integracji.
 
@@ -17,12 +21,12 @@ Klient WWW odświeża stan meczu, ignoruje stare odpowiedzi, sygnalizuje nieaktu
 | TypeScript / Vite | `npm run lint` i `npm run build` PASS |
 | Spójna kopia SQLite | 6/6 scenariuszy PASS na PHP 7.4: SQLite3 backup i PDO VACUUM INTO z WAL, konfiguracja/klucz, odmowa nadpisania i publicznego celu, baza sprzed migracji |
 | Bieżące APK 1.0.0 | 300/300 testów, assembleRelease, lintRelease i kontrola podpisu/ABI/16KiB PASS; sprzęt nieweryfikowany |
-| Aktualizacja produkcji | Wdrożono pięć plików aplikacji po prywatnej kopii SQLite/config/kodu. HTML/JS/CSS HTTP200 i zgodne SHA256, API session HTTP200. Zalogowana próba produkcyjna oczekuje |
+| Aktualizacja produkcji | Wdrożono pięć plików aplikacji po prywatnej kopii SQLite/config/kodu. HTML/JS/CSS HTTP200 i zgodne SHA256, API session HTTP200. Zalogowana próba produkcyjna dwóch kart26.10 PASS (szczegóły powyżej) |
 | Telefony, aparat i rzeczywista gra | Niewykonane; testy HTTP/JVM nie potwierdzają trafności rozpoznawania ani stabilności sprzętu |
 
 Przed pierwszym żądaniem nowego API na produkcji wykonać i potwierdzić spójną kopię bazy wraz z `config.local.php` i ewentualnym `device-secret.bin` poza `public_html`. `tools/backup.php` działa tylko w CLI, blokuje zapisy na czas obrazu, sprawdza integralność/liczby rekordów i zapisuje manifest. Selektywna aktualizacja musi zachować całą produkcyjną konfigurację i `api/data/`. Dokładna procedura: [DEPLOY_HOSTIDO.md](DEPLOY_HOSTIDO.md).
 
-Następne kroki: zakończyć testy/wydanie APK, wykonać kopię i wdrożenie po uzyskaniu dostępu do Hostido, sprawdzić docelowe HTTPS i zgodność dwóch klientów na wydzielonym meczu testowym. Następnie próby P0 telefonów według `dart-lens/docs/DEVICE_TESTS.md`. Nie deklarować zakończenia na podstawie samych lokalnych testów. Stare wpisy poniżej są zachowane jako historia, nie opis aktualnej gałęzi i integracji.
+Następne kroki: produkcyjna próba parowania/obserwacji kamery i próby P0 telefonów według `dart-lens/docs/DEVICE_TESTS.md`. Nie deklarować zakończenia na podstawie samych lokalnych testów. Stare wpisy poniżej są zachowane jako historia, nie opis aktualnej gałęzi i integracji.
 
 ## Historyczna metryka — 23.08.2026
 
