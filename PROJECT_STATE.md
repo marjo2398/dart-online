@@ -1,4 +1,16 @@
-# Dart Online — stan 27.10.2026
+# Dart Online — stan 28.10.2026
+
+## Etap 1 WWW — wykonany lokalnie, bez wdrożenia
+
+Szybkie 501 BO3 i własny X01 2–10001 (w tym301/501/701/901); straight/double/master-in/out; legi/sety do N lub BO, wszystkie N legów z remisem; przewaga2, limit par/sudden death, osobny ostatni set. Trwałe losowanie i bull-off, rotacje setów/legów, oczekiwanie na startera decidera. Szablony SQLite z edycją/nazwą/ulubionymi/usunięciem; mecze mają własny config v1.
+
+PHP prowadzi wynik i przejścia; cofnięcie/korekta odtwarza otwarcie, leg/set/mecz i startera. Kamera nadal wymaga decyzji operatora. Migracja SQLitev4 zachowuje dane, historię i sekwencje ID; ponowienie bez zmian, błąd cofa migrację. Sumy przed double/master-in i przy master-out wymagają pojedynczych pól. Globalne statystyki jawnie ograniczone do dawnych formatów.
+
+APK1.0.1 bez zmian: serwer zachowuje dawny kontrakt i blokuje nowe formaty przy braku nagłówka obsługi. Obsługa setów/remisu/faz/bull-off w Androidzie wymaga osobnego zadania, bez nowej APK w tym etapie. [SPEC](docs/SPEC.md), [API](docs/API.md), [TASK](TASK.md).
+
+Weryfikacja lokalna: regresja API19/19, nowe formaty13 grup PASS, migracja pełnego fixturev3/ponowienie/rollback PASS, klient WWW9 kontroli PASS, TypeScript/Vite i składnia PHP PASS. Przeglądarka: zapis i użycie szablonu, pełny mecz setowy, undo końca, reload/wznowienie. [Zakres i ograniczenia testów](docs/TESTING.md). To nie są próby fizycznego telefonu ani kamery.
+
+Gałąź `feature/apk-integration-20261025`. Brak push/merge/wdrożenia i zapisów produkcyjnych. Produkcja nadal odpowiada stanowi konsolidacji poniżej (kod bazowy a7f7f06). Cudze TASK/audyt w dart-lens zachowane bez zmian. Następne decyzje: osobna autoryzacja wdrożenia; testy telefonów P0/P1 nadal oczekują.
 
 ## Jedna wersja panelu
 

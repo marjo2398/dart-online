@@ -20,6 +20,9 @@ export interface Player {
 }
 
 export interface MatchPlayerState {
+  sets: number;
+  set_legs: number;
+  opened: boolean;
   id: number;
   name: string;
   position: 1 | 2;
@@ -57,9 +60,18 @@ export interface GameState {
   starting_score: number;
   status: 'active' | 'finished';
   current_leg: number;
-  max_legs: number;
+  max_legs: number | null;
   current_player_id: number | null;
-  leg_starter_id: number;
+  leg_starter_id: number | null;
+  set_starter_id: number;
+  current_set: number;
+  leg_in_set: number;
+  result: 'win' | 'draw' | null;
+  phase: 'regular' | 'decider' | 'advantage' | 'sudden_death' | 'awaiting_starter' | 'finished';
+  aggregate_allowed: boolean;
+  config: MatchConfig;
+  format_description: string;
+  legacy_compatible: boolean;
   created_at: string;
   updated_at: string;
   finished_at: string | null;
@@ -135,6 +147,9 @@ export interface AuditEntry {
 }
 
 export interface GameSummary {
+  config: MatchConfig;
+  format_description: string;
+  result: 'win' | 'draw' | null;
   id: number;
   player1: MatchPlayerState;
   player2: MatchPlayerState;
@@ -151,7 +166,21 @@ export interface GameSummary {
 }
 
 export interface DashboardData {
+  templates: MatchTemplate[];
+  statistics_scope: string;
   players: Player[];
   active_games: GameSummary[];
   history: GameSummary[];
 }
+
+export interface DecidingRule { win_by_two: boolean; extra_pairs: number | null }
+export interface MatchConfig {
+  version: 1;
+  scoring: { start: number; in: 'straight' | 'double' | 'master'; out: 'straight' | 'double' | 'master' };
+  match: { unit: 'legs' | 'sets' | 'fixed'; target: number };
+  legs_per_set: number;
+  deciding: DecidingRule;
+  final_set: (DecidingRule & { target: number }) | null;
+  starters: { method: 'fixed' | 'random' | 'bull_off'; player: 1 | 2; leg_rotation: 'alternate' | 'same'; set_rotation: 'alternate' | 'same'; decider: 'rotation' | 'initial' | 'bull_off' };
+}
+export interface MatchTemplate { id: number; name: string; config: MatchConfig; favorite: boolean; revision: number }

@@ -9,6 +9,7 @@ const ALLOWED_STARTING_SCORES = [301, 501, 701, 901];
 const ALLOWED_LEGS_TO_WIN = [1, 2, 3, 5];
 
 require_once __DIR__ . '/sync.php';
+require_once __DIR__ . '/formats.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
@@ -243,6 +244,7 @@ function ensureColumn(PDO $pdo, string $table, string $column, string $definitio
 function migrateDatabase(PDO $pdo): void
 {
     if (tableExists($pdo, 'schema_meta') && (int) $pdo->query("SELECT value FROM schema_meta WHERE key = 'schema_version'")->fetchColumn() >= 3) {
+        migrateFormats($pdo);
         return;
     }
     transaction($pdo, static function () use ($pdo): void {
@@ -346,13 +348,13 @@ function migrateDatabase(PDO $pdo): void
     if ($version < 2) {
         transaction($pdo, static function () use ($pdo): void {
             migrateLegacyThrows($pdo);
-            rebuildAllPlayerStats($pdo);
             $statement = $pdo->prepare("INSERT INTO schema_meta(key, value) VALUES ('schema_version', '2') ON CONFLICT(key) DO UPDATE SET value = excluded.value");
             $statement->execute();
         });
     }
     migrateSync($pdo);
     });
+    migrateFormats($pdo);
 }
 
 function migrateLegacyThrows(PDO $pdo): void
@@ -440,45 +442,46 @@ function rebuildAllPlayerStats(PDO $pdo): void
         UPDATE players
         SET
             total_points = COALESCE((
-                SELECT SUM(v.applied_score) FROM visits v WHERE v.player_id = players.id
+                SELECT SUM(v.applied_score) FROM visits v WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id
             ), 0),
             total_darts_thrown = COALESCE((
-                SELECT SUM(v.darts_used) FROM visits v WHERE v.player_id = players.id
+                SELECT SUM(v.darts_used) FROM visits v WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id
             ), 0),
             count_100 = COALESCE((
                 SELECT COUNT(*) FROM visits v
-                WHERE v.player_id = players.id AND v.applied_score BETWEEN 100 AND 139
+                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id AND v.applied_score BETWEEN 100 AND 139
             ), 0),
             count_140 = COALESCE((
                 SELECT COUNT(*) FROM visits v
-                WHERE v.player_id = players.id AND v.applied_score BETWEEN 140 AND 179
+                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id AND v.applied_score BETWEEN 140 AND 179
             ), 0),
             count_180 = COALESCE((
                 SELECT COUNT(*) FROM visits v
-                WHERE v.player_id = players.id AND v.applied_score = 180
+                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id AND v.applied_score = 180
             ), 0),
             hi_score = COALESCE((
-                SELECT MAX(v.applied_score) FROM visits v WHERE v.player_id = players.id
+                SELECT MAX(v.applied_score) FROM visits v WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id
             ), 0),
             highest_checkout = COALESCE((
                 SELECT MAX(v.applied_score) FROM visits v
-                WHERE v.player_id = players.id AND v.is_checkout = 1
+                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id AND v.is_checkout = 1
             ), 0),
             best_leg_darts = COALESCE((
                 SELECT MIN(winning_leg.leg_darts)
                 FROM (
                     SELECT v.player_id, v.game_id, v.leg_no, SUM(v.darts_used) AS leg_darts, MAX(v.is_checkout) AS won_leg
                     FROM visits v
+                    WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1)
                     GROUP BY v.player_id, v.game_id, v.leg_no
                 ) AS winning_leg
                 WHERE winning_leg.player_id = players.id AND winning_leg.won_leg = 1
             ), 0),
             games_played = COALESCE((
                 SELECT COUNT(*) FROM games g
-                WHERE g.winner_id IS NOT NULL AND (g.player1_id = players.id OR g.player2_id = players.id)
+                WHERE g.legacy_compatible=1 AND g.winner_id IS NOT NULL AND (g.player1_id = players.id OR g.player2_id = players.id)
             ), 0),
             games_won = COALESCE((
-                SELECT COUNT(*) FROM games g WHERE g.winner_id = players.id
+                SELECT COUNT(*) FROM games g WHERE g.legacy_compatible=1 AND g.winner_id = players.id
             ), 0)
         SQL);
 }
@@ -648,6 +651,7 @@ function normalizeVisit(array $row): array
         'created_at' => (string) $row['created_at'],
         'mode' => (string) ($row['mode'] ?? 'aggregate'),
         'is_complete' => (bool) ($row['is_complete'] ?? true),
+        'opened_after' => (bool) ($row['opened_after'] ?? true),
     ];
 }
 
@@ -677,105 +681,7 @@ function fetchGameVisits(PDO $pdo, int $gameId): array
 
 function replayGame(array $game, array $visits): array
 {
-    $p1 = (int) $game['player1_id'];
-    $p2 = (int) $game['player2_id'];
-    $startingScore = (int) $game['starting_score'];
-    $legsToWin = (int) $game['legs_to_win'];
-    $scores = [$p1 => $startingScore, $p2 => $startingScore];
-    $legs = [$p1 => 0, $p2 => 0];
-    $points = [$p1 => 0, $p2 => 0];
-    $darts = [$p1 => 0, $p2 => 0];
-    $high = [$p1 => 0, $p2 => 0];
-    $currentLegDarts = [$p1 => 0, $p2 => 0];
-    $currentLeg = 1;
-    $currentPlayer = $p1;
-    $derivedWinner = null;
-
-    foreach ($visits as $visit) {
-        $playerId = (int) $visit['player_id'];
-        if ($playerId !== $p1 && $playerId !== $p2) {
-            continue;
-        }
-
-        $visitLeg = max(1, (int) $visit['leg_no']);
-        if ($visitLeg > $currentLeg) {
-            $currentLeg = $visitLeg;
-            $scores = [$p1 => $startingScore, $p2 => $startingScore];
-            $currentLegDarts = [$p1 => 0, $p2 => 0];
-            $currentPlayer = $currentLeg % 2 === 1 ? $p1 : $p2;
-        }
-
-        $applied = max(0, (int) $visit['applied_score']);
-        $used = max(1, min(3, (int) $visit['darts_used']));
-        $scores[$playerId] = max(0, $scores[$playerId] - $applied);
-        $points[$playerId] += $applied;
-        $darts[$playerId] += $used;
-        $high[$playerId] = max($high[$playerId], $applied);
-        $currentLegDarts[$playerId] += $used;
-
-        if ((bool) $visit['is_checkout']) {
-            $legs[$playerId]++;
-            if ($legs[$playerId] >= $legsToWin) {
-                $derivedWinner = $playerId;
-                $currentPlayer = null;
-            } else {
-                $currentLeg++;
-                $scores = [$p1 => $startingScore, $p2 => $startingScore];
-                $currentLegDarts = [$p1 => 0, $p2 => 0];
-                $currentPlayer = $currentLeg % 2 === 1 ? $p1 : $p2;
-            }
-        } elseif ($derivedWinner === null && ($visit['is_complete'] ?? true)) {
-            $currentPlayer = $playerId === $p1 ? $p2 : $p1;
-        } elseif ($derivedWinner === null) {
-            $currentPlayer = $playerId;
-        }
-    }
-
-    $storedWinner = $game['winner_id'] === null ? null : (int) $game['winner_id'];
-    $winnerId = $storedWinner ?? $derivedWinner;
-    if ($winnerId !== null) {
-        $currentPlayer = null;
-    }
-
-    $playerState = static function (int $id, string $name, int $position) use ($scores, $legs, $points, $darts, $high, $currentLegDarts): array {
-        return [
-            'id' => $id,
-            'name' => $name,
-            'position' => $position,
-            'remaining' => $scores[$id],
-            'legs' => $legs[$id],
-            'points' => $points[$id],
-            'darts' => $darts[$id],
-            'average' => $darts[$id] > 0 ? round(($points[$id] / $darts[$id]) * 3, 2) : 0.0,
-            'highest_visit' => $high[$id],
-            'current_leg_darts' => $currentLegDarts[$id],
-        ];
-    };
-
-    return [
-        'game' => [
-            'id' => (int) $game['id'],
-            'player1_id' => $p1,
-            'player2_id' => $p2,
-            'winner_id' => $winnerId,
-            'legs_to_win' => $legsToWin,
-            'starting_score' => $startingScore,
-            'status' => $winnerId === null ? 'active' : 'finished',
-            'current_leg' => $currentLeg,
-            'max_legs' => $legsToWin * 2 - 1,
-            'current_player_id' => $currentPlayer,
-            'leg_starter_id' => $currentLeg % 2 === 1 ? $p1 : $p2,
-            'created_at' => (string) $game['created_at'],
-            'updated_at' => (string) ($game['updated_at'] ?? $game['created_at']),
-            'finished_at' => $game['finished_at'] === null ? null : (string) $game['finished_at'],
-        ],
-        'players' => [
-            $playerState($p1, (string) $game['player1_name'], 1),
-            $playerState($p2, (string) $game['player2_name'], 2),
-        ],
-        'visits' => array_values($visits),
-        'can_undo' => count($visits) > 0,
-    ];
+    return replayFormat($game,$visits);
 }
 
 function fetchGameSnapshot(PDO $pdo, int $gameId): array
@@ -800,12 +706,17 @@ function snapshotSummary(array $snapshot): array
         'updated_at' => $snapshot['game']['updated_at'],
         'finished_at' => $snapshot['game']['finished_at'],
         'visit_count' => count($snapshot['visits']),
+        'config' => $snapshot['game']['config'],
+        'format_description' => $snapshot['game']['format_description'],
+        'legacy_compatible' => $snapshot['game']['legacy_compatible'],
+        'result' => $snapshot['game']['result'],
     ];
 }
 
 function fetchGameRows(PDO $pdo, bool $finished): array
 {
-    $where = $finished ? 'g.winner_id IS NOT NULL' : 'g.winner_id IS NULL';
+    $where = $finished ? '(g.finished_at IS NOT NULL OR g.winner_id IS NOT NULL)' : '(g.finished_at IS NULL AND g.winner_id IS NULL)';
+    if (!supportsFormats()) { $where .= ' AND g.legacy_compatible=1'; }
     $limit = $finished ? ' LIMIT 50' : '';
     return $pdo->query(<<<SQL
         SELECT g.*, p1.name AS player1_name, p2.name AS player2_name
@@ -850,6 +761,8 @@ function getDashboard(PDO $pdo): array
         'players' => getPlayers($pdo),
         'active_games' => array_map(static fn (array $row): array => $summaries[(int) $row['id']], $activeRows),
         'history' => array_map(static fn (array $row): array => $summaries[(int) $row['id']], $historyRows),
+        'templates' => supportsFormats() ? listTemplates($pdo) : [],
+        'statistics_scope' => 'Wyłącznie dotychczasowe formaty: 301/501/701/901, straight-in/double-out, do 1/2/3/5 legów, naprzemienny start od zawodnika 1. Inne formaty mają statystyki w meczu.',
     ];
 }
 
@@ -912,32 +825,7 @@ function deletePlayer(PDO $pdo, int $playerId): array
 
 function createGame(PDO $pdo, array $input): array
 {
-    $player1 = requiredInt($input, 'player1_id', 1, PHP_INT_MAX);
-    $player2 = requiredInt($input, 'player2_id', 1, PHP_INT_MAX);
-    $legsToWin = requiredInt($input, 'legs_to_win', 1, 5);
-    $startingScore = requiredInt($input, 'starting_score', 301, 901);
-
-    if ($player1 === $player2) {
-        problem(422, 'players-must-differ', 'Wybierz dwóch różnych zawodników.');
-    }
-    if (!in_array($legsToWin, ALLOWED_LEGS_TO_WIN, true)) {
-        problem(422, 'invalid-legs', 'Dozwolona liczba legów do wygrania to 1, 2, 3 albo 5.');
-    }
-    if (!in_array($startingScore, ALLOWED_STARTING_SCORES, true)) {
-        problem(422, 'invalid-starting-score', 'Dozwolony wynik startowy to 301, 501, 701 albo 901.');
-    }
-
-    return transaction($pdo, static function () use ($pdo, $player1, $player2, $legsToWin, $startingScore): array {
-        $statement = $pdo->prepare('SELECT COUNT(*) FROM players WHERE id IN (:player1, :player2)');
-        $statement->execute(['player1' => $player1, 'player2' => $player2]);
-        if ((int) $statement->fetchColumn() !== 2) {
-            problem(422, 'player-not-found', 'Co najmniej jeden z wybranych zawodników nie istnieje.');
-        }
-
-        $insert = $pdo->prepare('INSERT INTO games(player1_id, player2_id, legs_to_win, starting_score) VALUES (:player1, :player2, :legs, :score)');
-        $insert->execute(['player1' => $player1, 'player2' => $player2, 'legs' => $legsToWin, 'score' => $startingScore]);
-        return fetchGameSnapshot($pdo, (int) $pdo->lastInsertId());
-    });
+    return createFormattedGame($pdo,$input);
 }
 
 function legalDartScores(): array
@@ -1013,25 +901,6 @@ function isPossibleCheckout(int $score, int $dartsUsed): bool
     return false;
 }
 
-function finishGame(PDO $pdo, int $gameId, int $winnerId): void
-{
-    $statement = $pdo->prepare(<<<'SQL'
-        UPDATE games
-        SET winner_id = :winner_id,
-            finished_at = COALESCE(finished_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = :id AND winner_id IS NULL
-        SQL);
-    $statement->execute(['winner_id' => $winnerId, 'id' => $gameId]);
-
-    $check = $pdo->prepare('SELECT winner_id FROM games WHERE id = :id');
-    $check->execute(['id' => $gameId]);
-    $storedWinner = $check->fetchColumn();
-    if ($storedWinner === false || (int) $storedWinner !== $winnerId) {
-        problem(409, 'winner-conflict', 'Mecz ma już innego zwycięzcę.');
-    }
-}
-
 function recordVisit(PDO $pdo, array $input): array
 {
     $gameId = requiredInt($input, 'game_id', 1, PHP_INT_MAX);
@@ -1045,7 +914,7 @@ function recordVisit(PDO $pdo, array $input): array
         if ($snapshot['partial_visit'] !== null) {
             problem(409, 'partial-visit-exists', 'Dokończ pojedyncze lotki albo cofnij je przed wpisaniem całej sumy.');
         }
-        if ($snapshot['game']['winner_id'] !== null) {
+        if ($snapshot['game']['status'] === 'finished') {
             problem(409, 'game-finished', 'Ten mecz jest już zakończony. Możesz cofnąć ostatnią wizytę.');
         }
         if ($snapshot['game']['current_player_id'] !== $playerId) {
@@ -1063,9 +932,13 @@ function recordVisit(PDO $pdo, array $input): array
             problem(422, 'player-not-in-game', 'Zawodnik nie bierze udziału w tym meczu.');
         }
 
+        if (!$snapshot['game']['aggregate_allowed']) {
+            problem(422,'individual-darts-required','Przed otwarciem double/master-in oraz przy master-out wpisuj pojedyncze lotki.');
+        }
         $remainingAfter = $playerState['remaining'] - $score;
-        $isCheckout = $remainingAfter === 0 && $doubleConfirmed;
-        $isBust = $remainingAfter < 0 || $remainingAfter === 1 || ($remainingAfter === 0 && !$doubleConfirmed);
+        $straightOut = $snapshot['game']['config']['scoring']['out'] === 'straight';
+        $isCheckout = $remainingAfter === 0 && ($straightOut || $doubleConfirmed);
+        $isBust = $remainingAfter < 0 || (!$straightOut && ($remainingAfter === 1 || ($remainingAfter === 0 && !$doubleConfirmed)));
 
         if (!isPossibleVisitScore($score, $dartsUsed)) {
             problem(422, 'impossible-visit-score', 'Tego wyniku nie da się uzyskać podaną liczbą legalnych lotek.');
@@ -1073,16 +946,16 @@ function recordVisit(PDO $pdo, array $input): array
         if ($doubleConfirmed && $remainingAfter !== 0) {
             problem(422, 'double-not-applicable', 'Potwierdzenie podwójnego pola jest dozwolone tylko przy zejściu do zera.');
         }
-        if ($isCheckout) {
+        if ($isCheckout && !$straightOut) {
             if (!isPossibleCheckout($score, $dartsUsed)) {
                 problem(422, 'impossible-checkout', 'Tego wyniku nie da się zakończyć na podwójnym polu podaną liczbą lotek.');
             }
-        } elseif (!$isBust && $dartsUsed !== 3) {
+        } elseif (!$isCheckout && !$isBust && $dartsUsed !== 3) {
             problem(422, 'invalid-darts-used', 'Dla wizyty bez checkoutu zapisywane są trzy lotki.');
         }
 
         $appliedScore = $isBust ? 0 : $score;
-        $visitNumber = count($snapshot['visits']) + 1;
+        $visitNumber = $snapshot['game']['context']['visit_no'];
         $insert = $pdo->prepare(<<<'SQL'
             INSERT INTO visits(game_id, leg_no, visit_no, player_id, declared_score, applied_score, darts_used, is_bust, is_checkout)
             VALUES (:game_id, :leg_no, :visit_no, :player_id, :declared_score, :applied_score, :darts_used, :is_bust, :is_checkout)
@@ -1102,9 +975,7 @@ function recordVisit(PDO $pdo, array $input): array
         $pdo->prepare("UPDATE games SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = :id")
             ->execute(['id' => $gameId]);
 
-        if ($isCheckout && $playerState['legs'] + 1 >= $snapshot['game']['legs_to_win']) {
-            finishGame($pdo, $gameId, $playerId);
-        }
+        persistCompletion($pdo,$gameId);
 
         rebuildAllPlayerStats($pdo);
         return fetchGameSnapshot($pdo, $gameId);
@@ -1113,50 +984,10 @@ function recordVisit(PDO $pdo, array $input): array
 
 function finishCompletedGame(PDO $pdo, int $gameId): array
 {
-    return transaction($pdo, static function () use ($pdo, $gameId): array {
-        $game = fetchGameRow($pdo, $gameId);
-        $snapshot = replayGame($game, fetchGameVisits($pdo, $gameId));
-        if ($game['winner_id'] !== null) {
-            return $snapshot;
-        }
-        $winnerId = null;
-        foreach ($snapshot['players'] as $player) {
-            if ($player['legs'] >= $snapshot['game']['legs_to_win']) {
-                $winnerId = $player['id'];
-                break;
-            }
-        }
-        if ($winnerId === null) {
-            problem(409, 'game-not-complete', 'Mecz nie ma jeszcze wymaganej liczby wygranych legów.');
-        }
-        finishGame($pdo, $gameId, $winnerId);
-        rebuildAllPlayerStats($pdo);
-        return fetchGameSnapshot($pdo, $gameId);
-    });
-}
-
-function undoLastVisit(PDO $pdo, int $gameId): array
-{
-    return transaction($pdo, static function () use ($pdo, $gameId): array {
-        fetchGameRow($pdo, $gameId);
-        $statement = $pdo->prepare('SELECT id FROM visits WHERE game_id = :game_id ORDER BY visit_no DESC, id DESC LIMIT 1');
-        $statement->execute(['game_id' => $gameId]);
-        $visitId = $statement->fetchColumn();
-        if ($visitId === false) {
-            problem(409, 'nothing-to-undo', 'Ten mecz nie ma jeszcze żadnej zapisanej wizyty.');
-        }
-
-        $pdo->prepare('DELETE FROM visits WHERE id = :id')->execute(['id' => (int) $visitId]);
-        $pdo->prepare(<<<'SQL'
-            UPDATE games
-            SET winner_id = NULL,
-                finished_at = NULL,
-                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-            WHERE id = :id
-            SQL)->execute(['id' => $gameId]);
-        rebuildAllPlayerStats($pdo);
-        return fetchGameSnapshot($pdo, $gameId);
-    });
+    $snapshot=fetchGameSnapshot($pdo,$gameId);
+    if ($snapshot['game']['status']!=='finished') { problem(409,'game-not-complete','Mecz nie został jeszcze rozstrzygnięty.'); }
+    persistCompletion($pdo,$gameId);
+    return fetchGameSnapshot($pdo,$gameId);
 }
 
 function deleteGame(PDO $pdo, int $gameId): array
@@ -1213,6 +1044,7 @@ try {
         $data = getDashboard($database);
         $assigned = $actor['device']['game_id'] ?? null;
         if ($assigned !== null) {
+            assertFormatClient(fetchGameRow($database,$assigned));
             $snapshot = fetchGameSnapshot($database, $assigned);
             $ids = [$snapshot['game']['player1_id'], $snapshot['game']['player2_id']];
             $data['players'] = array_values(array_filter($data['players'], static fn(array $p): bool => in_array($p['id'], $ids, true)));
@@ -1229,6 +1061,7 @@ try {
             problem(422, 'invalid-game-id', 'Podaj prawidłowy identyfikator meczu.');
         }
         assertScope($actor, $gameId);
+        assertFormatClient(fetchGameRow($database,$gameId));
         sendData(fetchGameSnapshot($database, $gameId));
     }
     if ($action === 'devices') {
@@ -1246,7 +1079,10 @@ try {
         $commandId = requiredUuid($_GET, 'command_id');
         $saved = sqlOne($database, 'SELECT game_id,result FROM commands WHERE actor=? AND command_id=?', [$actor['actor'],$commandId]);
         if ($saved && $saved['game_id'] !== null) { assertScope($actor,(int)$saved['game_id']); }
-        sendData($saved ? ['status'=>'saved','result'=>json_decode($saved['result'],true,512,JSON_THROW_ON_ERROR)] : ['status'=>'unknown']);
+        if ($saved && $saved['game_id'] !== null && sqlOne($database,'SELECT id FROM games WHERE id=?',[$saved['game_id']])) { assertFormatClient(fetchGameRow($database,(int)$saved['game_id'])); }
+        $result=$saved ? json_decode($saved['result'],true,512,JSON_THROW_ON_ERROR) : null;
+        if ($result!==null) { assertResultClient($result); }
+        sendData($saved ? ['status'=>'saved','result'=>$result] : ['status'=>'unknown']);
     }
     if ($action === 'observation-status') {
         requireMethod('GET');
@@ -1260,6 +1096,11 @@ try {
     requireMethod('POST');
     if (!$hasBearer) { requireCsrf(); }
     $body = readJsonBody();
+    if ($action === 'format-preview') {
+        if (!supportsFormats()) { problem(409,'client-update-required','Wymagana obsługa formatów v1.'); }
+        $c=validateFormat(formatObject($body,'config'));
+        sendData(['config'=>$c,'description'=>formatDescription($c),'legacy_compatible'=>compatibleFormat($c)]);
+    }
     sendData(runCommand($database, $action, $body));
 } catch (ApiProblem $exception) {
     $error = [

@@ -1468,3 +1468,14 @@ select {
     transition-duration: 0.01ms !important;
   }
 }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.new-game-panel { min-width: 0; }
+.new-game-panel details { border-top: 1px solid var(--line-strong); padding: 1rem 0; }
+.new-game-panel summary { cursor: pointer; font-weight: 700; margin-bottom: .75rem; }
+.new-game-panel label { display: grid; gap: .5rem; margin: .6rem 0; }
+.new-game-panel label:has(input[type=checkbox]) { display: flex; align-items: center; }
+.new-game-panel input[type=checkbox] { width: 1.2rem; min-height: 1.2rem; }
+.target-input { display: grid; grid-template-columns: minmax(0, 1fr) 6rem; gap: .5rem; }
+.format-summary { padding: 1rem; margin: 1rem 0; border: 1px solid var(--line-strong); border-radius: .75rem; overflow-wrap: anywhere; }
+.format-summary p, .rule-fields p { margin: .5rem 0; }
+.new-game-panel select, .new-game-panel input { min-width: 0; max-width: 100%; }

@@ -1,6 +1,42 @@
-# Dart Online API — integracja natywna v3
+# Dart Online API — integracja natywna i formaty v1 (schemat SQLite v4)
 
-Punkt wejścia pozostaje `api/index.php?action=...`, względem katalogu panelu (produkcja `/dart/`). PHP 7.4+, SQLite; standardowe HTTPS. Odpowiedzi `{ok:true,data:...}` / `{ok:false,error:{code,message,details?}}` i `Cache-Control: no-store`.
+Punkt wejścia pozostaje `api/index.php?action=...`, względem katalogu panelu (docelowa domena `https://dartlens.host749284.xce.pl/`). PHP 7.4+, SQLite; standardowe HTTPS. Odpowiedzi `{ok:true,data:...}` / `{ok:false,error:{code,message,details?}}` i `Cache-Control: no-store`. Rozbudowa formatów z 28.10.2026 jest lokalna, bez wdrożenia.
+
+## Formaty meczu — rozszerzenie kompatybilne
+
+Klient rozumiejący nowe reguły wysyła `X-Dart-Formats: 1` we wszystkich żądaniach, także device-join i odczytach/statusach. Bez tego nagłówka dashboard filtruje nieobsługiwane mecze, a bezpośredni odczyt/zapis/parowanie do nich zwraca `409 client-update-required`. Kontrola obejmuje także ponowienie zapisanej komendy i odzyskanie cache game-create przez command-status. Nie zmieniono uprawnień/CSRF ani wymagań metadanych komendy.
+
+APK1.0.1 czyta `legs_to_win`, globalne `legs` i `status`, oblicza BO=2*legs_to_win−1, nie odczytuje config/setów/remisu/faz. Nie wysyła nagłówka formatów. Dlatego nie otrzymuje nowych meczów zamiast ignorowanego pola unsupported. Bez zmian APK działa dawny kontrakt: 301/501/701/901, do 1/2/3/5 legów, straight-in/double-out, gracz 1 i naprzemienny start. Taki sam format utworzony w nowym WWW pozostaje kompatybilny. Inne konfiguracje są ograniczone do WWW.
+
+Przed dodaniem nagłówka do przyszłego Androida trzeba zmienić `OnlineModels.kt`/`OnlineScreen.kt`/`OnlineViewModel.kt` i obsługę komend: renderować sety i legi seta, remis i fazy, start/otwarcie, null current_player przy oczekiwaniu, blokady sum przez aggregate_allowed i decyzję starter-select. Samo dopisanie nagłówka byłoby błędem. Nie przygotowano nowej APK.
+
+POST `game-create` przyjmuje albo dotychczasowe pola, albo `{player1_id,player2_id,config}` (nie oba). Każdy mecz kopiuje własne reguły; nie ma endpointu zmieniającego je w trakcie. Przykład config:
+
+```json
+{
+  "version": 1,
+  "scoring": {"start":501,"in":"straight","out":"double"},
+  "match": {"unit":"sets","target":3},
+  "legs_per_set": 3,
+  "deciding": {"win_by_two":false,"extra_pairs":null},
+  "final_set": {"target":3,"win_by_two":true,"extra_pairs":2},
+  "starters": {"method":"fixed","player":1,"leg_rotation":"alternate","set_rotation":"alternate","decider":"bull_off"}
+}
+```
+
+Wartości i precyzyjne reguły: [SPEC](SPEC.md). `start`:2–10001, `in/out`:straight/double/master, `unit`:legs/sets/fixed, `target` i `legs_per_set`:1–99, `extra_pairs`:null lub 0–50. `final_set`:null lub obiekt powyżej; tylko dla setów. `method`:fixed/random/bull_off, `player`:pozycja 1/2 (nie ID; wynik random zapisuje serwer), rotacje alternate/same, decider rotation/initial/bull_off. Przechowuj wyłącznie target: BO N przelicz na (N+1)/2 i wymagaj całkowitego wyniku. Pola best_of/to_win w match są odrzucane. fixed zabrania przewagi i specjalnego decidera; final_set jest w nim niedozwolony.
+
+- POST `format-preview {config}` → `{config,description,legacy_compatible}`. Autoryzacja i CSRF jak pozostałe POST; operacja tylko waliduje, nie używa command_id/rewizji i nie tworzy komendy/audytu.
+- POST `starter-select {game_id,player_id}` + metadane i aktualna rewizja → snapshot. Wyłącznie oczekiwanie na rzeczywisty bull-off decidera; podaj ID gracza meczu. Zmienia rewizję, audyt i unieważnia propozycje kamery. Powtórzenie tej samej komendy jest bezpieczne. Wynik początkowego bull-off przekazujesz jako starters.player przy tworzeniu meczu.
+- GET `dashboard` dla nowego klienta zawiera dodatkowo `templates` i `statistics_scope`.
+- POST `template-save {name,config,favorite,template_id?,template_revision?}` + metadane z expected_revision:0 → `{templates}`. Administrator WWW. Bez ID tworzy nowy, z ID edytuje przy zgodnej template_revision, zwiększanej po edycji. Konflikt/usunięcie:409 template-conflict. Nazwa 1–120 bajtów UTF-8.
+- POST `template-delete {template_id,template_revision}` + metadane z expected_revision:0 → `{templates}`. Usunięcie nie zmienia meczów. Ulubiony jest bool. Szablony startowe są wspólne i edytowalne; zasiewane tylko podczas migracji, nie wracają po usunięciu.
+
+Nowy snapshot dodaje `game.config`, `format_version:1`, `format_description`, `legacy_compatible`, `result:null|win|draw`, `current_set`, `leg_in_set`, `set_starter_id`, `phase:regular|decider|advantage|sudden_death|awaiting_starter|finished`, `is_decider`, `is_sudden_death`, `aggregate_allowed`. `status:finished` obejmuje remis z winner_id:null; nie wnioskuj zakończenia wyłącznie z winner_id. `max_legs` może być null przy przewadze; dla setów odnosi się do aktualnego seta. Przy oczekiwaniu current_player_id i leg_starter_id są null. Gracze mają `sets`, `set_legs`, `opened` oraz dotychczasowe globalne `legs`. Visit ma `opened_after`. Dashboard summary zawiera config, format_description, legacy_compatible i result.
+
+Single dart i potwierdzona obserwacja używają tych samych reguł wejścia/wyjścia. Suma przed otwarciem double/master-in oraz każda suma przy master-out daje `422 individual-darts-required`; należy wpisać faktyczne pojedyncze pola, także pudła. Przy straight-out zero kończy bez double_confirmed, a 1 nie jest bust. Double-out zachowuje obowiązkowe potwierdzenie. Bust wycofuje punkty całej wizyty i otwarcie z niej. Cofnięcie zamknięcia odtwarza leg/set/mecz i startera; cofnięcie granicy prowadzącej do przyszłego decidera usuwa jego decyzję bull-off.
+
+Globalne pola Player.* liczą wyłącznie legacy_compatible=1, z jawnym opisem statistics_scope. Pozostałe formaty mają statystyki w snapshotach poszczególnych meczów; nie są mieszane w katalogu. Przejście v3→v4 i idempotencja/rollback: [ARCHITECTURE](ARCHITECTURE.md), dowody: [TESTING](TESTING.md).
 
 ## Dostęp
 

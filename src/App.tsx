@@ -18,6 +18,7 @@ import {
 import { ApiError, api, messageFrom } from './api';
 import DartGame from './components/DartGame';
 import Devices from './components/Devices';
+import GameSetup from './components/GameSetup';
 import WriteStatus, { useWriteState } from './components/WriteStatus';
 import type { DashboardData, GameSnapshot, GameSummary, Player, SessionState } from './types';
 
@@ -128,14 +129,14 @@ function GameCard({
           <strong>{game.player1.name}</strong>
           <span>{game.player1.remaining}</span>
         </div>
-        <b>{game.player1.legs} : {game.player2.legs}</b>
+        <b>{game.config.match.unit === 'sets' ? game.player1.sets : game.player1.legs} : {game.config.match.unit === 'sets' ? game.player2.sets : game.player2.legs}{game.config.match.unit === 'sets' ? ' sety' : ' legi'}</b>
         <div>
           <strong>{game.player2.name}</strong>
           <span>{game.player2.remaining}</span>
         </div>
       </div>
       <div className="game-card-meta">
-        <span>{game.starting_score} · do {game.legs_to_win} legów</span>
+        <span>{game.format_description}</span>
         <span>Leg {game.current_leg} · {game.visit_count} wizyt</span>
       </div>
       <div className="game-card-actions">
@@ -201,8 +202,8 @@ function HistoryRow({ game, busy, onOpen, onDelete }: {
     <article className="history-row">
       <div className="history-icon"><Trophy aria-hidden="true" /></div>
       <div className="history-main">
-        <strong>{game.player1.name} <span>{game.player1.legs}</span> : <span>{game.player2.legs}</span> {game.player2.name}</strong>
-        <small>Wygrywa {winner.name} · {game.starting_score} · BO{game.legs_to_win * 2 - 1}</small>
+        <strong>{game.player1.name} <span>{game.config.match.unit === 'sets' ? game.player1.sets : game.player1.legs}</span> : <span>{game.config.match.unit === 'sets' ? game.player2.sets : game.player2.legs}</span> {game.player2.name}</strong>
+        <small>{game.result === 'draw' ? 'Remis' : 'Wygrywa ' + winner.name} · {game.format_description}</small>
       </div>
       <time dateTime={game.finished_at ?? undefined}>{formatDate(game.finished_at ?? game.updated_at)}</time>
       <button type="button" className="icon-link" disabled={busy} onClick={() => onOpen(game.id)} title="Otwórz mecz" aria-label="Otwórz szczegóły meczu">
@@ -226,20 +227,7 @@ export default function App() {
   const busyRef = useRef(false);
 
   const [newPlayerName, setNewPlayerName] = useState('');
-  const [player1Id, setPlayer1Id] = useState<number | ''>('');
-  const [player2Id, setPlayer2Id] = useState<number | ''>('');
-  const [legsToWin, setLegsToWin] = useState(2);
-  const [startingScore, setStartingScore] = useState(501);
-
-  const installDashboard = (data: DashboardData) => {
-    setDashboard(data);
-    const ids = new Set(data.players.map((player) => player.id));
-    setPlayer1Id((current) => (current !== '' && ids.has(current) ? current : (data.players[0]?.id ?? '')));
-    setPlayer2Id((current) => {
-      if (current !== '' && ids.has(current)) return current;
-      return data.players.find((player) => player.id !== data.players[0]?.id)?.id ?? '';
-    });
-  };
+  const installDashboard = (data: DashboardData) => setDashboard(data);
 
   const handleApiError = (caught: unknown) => {
     if (caught instanceof ApiError && (caught.status === 401 || caught.code === 'invalid-csrf-token')) {
@@ -334,17 +322,6 @@ export default function App() {
     });
   };
 
-  const handleStartGame = async () => {
-    if (player1Id === '' || player2Id === '' || player1Id === player2Id) {
-      setError('Wybierz dwóch różnych zawodników.');
-      return;
-    }
-    await locked(async () => {
-      const snapshot = await api.createGame(player1Id, player2Id, legsToWin, startingScore);
-      setCurrentGame(snapshot);
-    });
-  };
-
   const handleOpenGame = async (id: number) => {
     await locked(async () => {
       setCurrentGame(await api.game(id));
@@ -379,7 +356,7 @@ export default function App() {
 
   if (!dashboard) return <LoadingScreen />;
 
-  const enoughPlayers = dashboard.players.length >= 2;
+
 
   return (
     <main className="app-shell">
@@ -410,53 +387,7 @@ export default function App() {
         <Devices />
 
         <div className="dashboard-grid">
-          <section className="panel new-game-panel" aria-labelledby="new-game-title">
-            <div className="section-heading">
-              <div><Play aria-hidden="true" /><div><p className="eyebrow">Mecz</p><h2 id="new-game-title">Nowa gra</h2></div></div>
-              <span className="status-dot">Double out</span>
-            </div>
-
-            {!enoughPlayers && (
-              <div className="empty-inline"><Users aria-hidden="true" /><span>Dodaj co najmniej dwóch zawodników, aby rozpocząć.</span></div>
-            )}
-
-            <div className="form-grid">
-              <label>
-                Zawodnik 1 · zaczyna pierwszy leg
-                <select value={player1Id} disabled={busy || !enoughPlayers} onChange={(event) => setPlayer1Id(event.target.value ? Number(event.target.value) : '')}>
-                  <option value="">Wybierz zawodnika</option>
-                  {dashboard.players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
-                </select>
-              </label>
-              <label>
-                Zawodnik 2
-                <select value={player2Id} disabled={busy || !enoughPlayers} onChange={(event) => setPlayer2Id(event.target.value ? Number(event.target.value) : '')}>
-                  <option value="">Wybierz zawodnika</option>
-                  {dashboard.players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
-                </select>
-              </label>
-              <label>
-                Punkty startowe
-                <select value={startingScore} disabled={busy} onChange={(event) => setStartingScore(Number(event.target.value))}>
-                  {[301, 501, 701, 901].map((score) => <option key={score} value={score}>{score}</option>)}
-                </select>
-              </label>
-              <label>
-                Format meczu
-                <select value={legsToWin} disabled={busy} onChange={(event) => setLegsToWin(Number(event.target.value))}>
-                  <option value={1}>1 leg</option>
-                  <option value={2}>Best of 3 · do 2</option>
-                  <option value={3}>Best of 5 · do 3</option>
-                  <option value={5}>Best of 9 · do 5</option>
-                </select>
-              </label>
-            </div>
-            <button className="button button-primary button-large full-width" type="button" disabled={busy || !enoughPlayers} onClick={handleStartGame}>
-              {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Play aria-hidden="true" />}
-              Rozpocznij mecz
-            </button>
-          </section>
-
+          <GameSetup players={dashboard.players} templates={dashboard.templates} busy={busy || writeState === 'unknown' || writeState === 'pending'} run={locked} onCreated={setCurrentGame} refresh={refreshDashboard} />
           <section className="panel active-games-panel" aria-labelledby="active-games-title">
             <div className="section-heading">
               <div><RotateCcw aria-hidden="true" /><div><p className="eyebrow">W toku</p><h2 id="active-games-title">Aktywne mecze</h2></div></div>
@@ -475,6 +406,7 @@ export default function App() {
         </div>
 
         <section className="panel players-panel" aria-labelledby="players-title">
+          <p className="muted">{dashboard.statistics_scope}</p>
           <div className="section-heading section-heading-wrap">
             <div><Users aria-hidden="true" /><div><p className="eyebrow">Ranking lokalny</p><h2 id="players-title">Zawodnicy i statystyki</h2></div></div>
             <form className="inline-form" onSubmit={handleAddPlayer}>

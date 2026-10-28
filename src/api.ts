@@ -1,4 +1,4 @@
-import type { DashboardData, Device, GameSnapshot, Player, SessionState } from './types';
+import type { DashboardData, Device, GameSnapshot, Player, SessionState, MatchConfig, MatchTemplate } from './types';
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly details?: Record<string, unknown>) {
@@ -43,6 +43,7 @@ async function request<T>(action: string, options: {
   const method = options.method ?? 'GET';
   const requestCsrfToken = csrfToken;
   const headers = new Headers({ Accept: 'application/json' });
+  headers.set('X-Dart-Formats', '1');
   if (method === 'POST') {
     headers.set('Content-Type', 'application/json');
     if (action !== 'login') {
@@ -118,6 +119,21 @@ export async function retryPending(): Promise<unknown> {
 function remember(session: SessionState): SessionState { csrfToken = session.csrf_token; return session; }
 
 export const api = {
+  previewFormat(config: MatchConfig): Promise<{ description: string; legacy_compatible: boolean }> {
+    return request('format-preview', { method: 'POST', body: { config } });
+  },
+  createConfiguredGame(player1Id: number, player2Id: number, config: MatchConfig): Promise<GameSnapshot> {
+    return mutate('game-create', { player1_id: player1Id, player2_id: player2Id, config });
+  },
+  saveTemplate(name: string, config: MatchConfig, favorite: boolean, template?: MatchTemplate): Promise<{ templates: MatchTemplate[] }> {
+    return mutate('template-save', { name, config, favorite, ...(template ? { template_id: template.id, template_revision: template.revision } : {}) });
+  },
+  deleteTemplate(template: MatchTemplate): Promise<{ templates: MatchTemplate[] }> {
+    return mutate('template-delete', { template_id: template.id, template_revision: template.revision });
+  },
+  selectStarter(gameId: number, playerId: number, revision: number): Promise<GameSnapshot> {
+    return mutate('starter-select', { game_id: gameId, player_id: playerId }, revision);
+  },
   async session(): Promise<SessionState> { return remember(await request('session')); },
   async login(password: string): Promise<SessionState> { return remember(await request('login', { method: 'POST', body: { password } })); },
   async logout(): Promise<SessionState> { return remember(await request('logout', { method: 'POST' })); },

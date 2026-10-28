@@ -119,7 +119,7 @@ function visitLabel(visit: Visit): string {
   return String(visit.applied_score);
 }
 
-function PlayerBoard({ player, active, visits }: { player: MatchPlayerState; active: boolean; visits: Visit[] }) {
+function PlayerBoard({ player, active, visits, setsMode }: { player: MatchPlayerState; active: boolean; visits: Visit[]; setsMode: boolean }) {
   return (
     <article className={`scoreboard-player ${active ? 'is-active' : ''}`}>
       <div className="scoreboard-player-head">
@@ -127,12 +127,14 @@ function PlayerBoard({ player, active, visits }: { player: MatchPlayerState; act
           <p className="eyebrow">Zawodnik {player.position}</p>
           <h2>{player.name}</h2>
         </div>
-        <div className="leg-badge"><span>Legi</span><strong>{player.legs}</strong></div>
+        <div className="leg-badge"><span>{setsMode ? 'Sety' : 'Legi'}</span><strong>{setsMode ? player.sets : player.legs}</strong></div>
       </div>
+      {setsMode && <p>Legi w tym secie: {player.set_legs} · łącznie: {player.legs}</p>}
 
       <div className="remaining-score" aria-label={`${player.name}, pozostało ${player.remaining}`}>
         {player.remaining}
       </div>
+      {!player.opened && <p className="sync-warning">Punktowanie jeszcze nieotwarte — wpisuj pojedyncze lotki.</p>}
 
       <dl className="match-stat-grid">
         <div><dt>Średnia</dt><dd>{player.darts ? player.average.toFixed(1) : '—'}</dd></div>
@@ -176,7 +178,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
 
   const currentPlayer = snapshot.players.find((player) => player.id === snapshot.game.current_player_id) ?? null;
   const winner = snapshot.players.find((player) => player.id === snapshot.game.winner_id) ?? null;
-  const legStarter = snapshot.players.find((player) => player.id === snapshot.game.leg_starter_id) ?? snapshot.players[0];
+  const legStarter = snapshot.players.find((player) => player.id === snapshot.game.leg_starter_id);
   const currentLegVisits = snapshot.visits.filter((visit) => visit.leg_no === snapshot.game.current_leg);
   const visitsFor = (playerId: number) => currentLegVisits.filter((visit) => visit.player_id === playerId).slice(-3);
 
@@ -255,6 +257,8 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
   };
 
   const describeSnapshot = (next: GameSnapshot) => {
+    if (next.game.result === 'draw') return 'Koniec meczu — remis.';
+    if (next.game.phase === 'awaiting_starter') return 'Oczekiwanie na wynik bull-off.';
     const visit = next.visits.at(-1);
     if (!visit) return 'Game on!';
     const player = next.players.find((candidate) => candidate.id === visit.player_id);
@@ -267,7 +271,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
     const remaining = next.players.find((candidate) => candidate.id === visit.player_id)?.remaining;
     if (visit.applied_score === 180) return 'One hundred and eighty!';
     if (remaining === 50) return 'Zostało 50. Bullseye.';
-    if (remaining && remaining <= 40 && remaining % 2 === 0) return `Zostało ${remaining}. Double ${remaining / 2}.`;
+    if (next.game.config.scoring.out === 'double' && remaining && remaining <= 40 && remaining % 2 === 0) return `Zostało ${remaining}. Double ${remaining / 2}.`;
     return `${visit.applied_score}. Zostało ${remaining}.`;
   };
 
@@ -287,6 +291,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
 
   const beginScore = async (score: number) => {
     if (writesDisabled || busyRef.current || pendingVisit || !currentPlayer || snapshot.partial_visit) return;
+    if (!snapshot.game.aggregate_allowed) { setError('Ten zapis wymaga pojedynczych lotek.'); return; }
     if (!Number.isInteger(score) || score < 0 || score > 180) {
       setError('Wynik wizyty musi być liczbą całkowitą od 0 do 180.');
       return;
@@ -295,10 +300,13 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
     setError(null);
     const remainingAfter = currentPlayer.remaining - score;
     if (remainingAfter === 0) {
+      if (snapshot.game.config.scoring.out === 'straight') {
+        setPendingVisit({ stage: 'darts', score, revision: snapshot.game.revision, doubleConfirmed: false, outcome: 'checkout' }); return;
+      }
       setPendingVisit({ stage: 'double', score, revision: snapshot.game.revision });
       return;
     }
-    if (remainingAfter < 0 || remainingAfter === 1) {
+    if (remainingAfter < 0 || (remainingAfter === 1 && snapshot.game.config.scoring.out !== 'straight')) {
       setPendingVisit({ stage: 'darts', score, revision: snapshot.game.revision, doubleConfirmed: false, outcome: 'bust' });
       return;
     }
@@ -339,7 +347,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
   const runCommand = async (operation: () => Promise<GameSnapshot>) => {
     if (writesDisabled) return;
     await withLock(async () => {
-      installSnapshot(await operation()); setInputValue(''); setPendingVisit(null);
+      const next = await operation(); installSnapshot(next); setRefereeMessage(describeSnapshot(next)); setInputValue(''); setPendingVisit(null);
     });
   };
   const recover = async () => {
@@ -482,7 +490,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
 
       <header className="match-topbar">
         <button className="button button-ghost" type="button" disabled={busy} onClick={handleExit}><ArrowLeft aria-hidden="true" /> Panel</button>
-        <div className="match-brand"><Target aria-hidden="true" /><span>{snapshot.game.starting_score} · BO{snapshot.game.max_legs}</span></div>
+        <div className="match-brand"><Target aria-hidden="true" /><span>{snapshot.game.starting_score} · {snapshot.game.config.match.unit === 'sets' ? 'sety' : 'legi'}</span></div>
         <div className="match-audio-actions">
           <button
             type="button"
@@ -498,11 +506,16 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
 
       <p className={fresh ? 'sync-status' : 'sync-status sync-warning'} role="status">{fresh ? `Połączono · rewizja ${snapshot.game.revision}` : 'Brak połączenia — ostatni wynik jest nieaktualny. Zapisy wstrzymane.'}</p>
       <WriteStatus onRecovered={recover} onAuthError={authError} />
+      <p className="format-summary">{snapshot.game.format_description}</p>
 
       <section className="referee-strip" aria-live="polite">
         <div><span>Wirtualny sędzia</span><strong>{refereeMessage}</strong></div>
-        <p>Leg {snapshot.game.current_leg} z maks. {snapshot.game.max_legs} · zaczynał {legStarter.name}</p>
+        <p>Leg {snapshot.game.current_leg}{snapshot.game.config.match.unit === 'sets' ? ` · set ${snapshot.game.current_set}, leg ${snapshot.game.leg_in_set}` : ''} · rozpoczynający: {legStarter?.name ?? 'oczekiwanie na bull-off'}</p>
       </section>
+      {snapshot.game.phase !== 'regular' && snapshot.game.phase !== 'finished' && <div className="format-summary" role="status">
+        <strong>{({ decider: 'Leg decydujący', advantage: 'Gra na przewagę dwóch legów', sudden_death: 'Sudden death — ten leg rozstrzyga', awaiting_starter: 'Bull-off: wskaż zwycięzcę przy tarczy' } as Record<string, string>)[snapshot.game.phase]}</strong>
+        {snapshot.game.phase === 'awaiting_starter' && <div className="secondary-controls">{snapshot.players.map(p => <button key={p.id} type="button" className="button button-primary" disabled={writesDisabled} onClick={() => runCommand(() => api.selectStarter(snapshot.game.id, p.id, snapshot.game.revision))}>Bull-off wygrał {p.name}</button>)}</div>}
+      </div>}
 
       {error && (
         <div className="match-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Zamknij">×</button></div>
@@ -511,18 +524,19 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
       {winner && (
         <section className="winner-banner">
           <Trophy aria-hidden="true" />
-          <div><p className="eyebrow">Koniec meczu</p><h1>Wygrywa {winner.name}</h1><span>{snapshot.players[0].legs} : {snapshot.players[1].legs}</span></div>
+          <div><p className="eyebrow">Koniec meczu</p><h1>Wygrywa {winner.name}</h1><span>{snapshot.game.config.match.unit === 'sets' ? `${snapshot.players[0].sets} : ${snapshot.players[1].sets} sety` : `${snapshot.players[0].legs} : ${snapshot.players[1].legs} legi`}</span></div>
         </section>
       )}
+      {snapshot.game.result === 'draw' && <section className="winner-banner"><h1>Remis {snapshot.players[0].legs} : {snapshot.players[1].legs}</h1></section>}
 
       <section className="scoreboard">
-        <PlayerBoard player={snapshot.players[0]} active={snapshot.game.current_player_id === snapshot.players[0].id} visits={visitsFor(snapshot.players[0].id)} />
+        <PlayerBoard player={snapshot.players[0]} active={snapshot.game.current_player_id === snapshot.players[0].id} visits={visitsFor(snapshot.players[0].id)} setsMode={snapshot.game.config.match.unit === 'sets'} />
         <div className="versus"><span>VS</span></div>
-        <PlayerBoard player={snapshot.players[1]} active={snapshot.game.current_player_id === snapshot.players[1].id} visits={visitsFor(snapshot.players[1].id)} />
+        <PlayerBoard player={snapshot.players[1]} active={snapshot.game.current_player_id === snapshot.players[1].id} visits={visitsFor(snapshot.players[1].id)} setsMode={snapshot.game.config.match.unit === 'sets'} />
       </section>
 
       <section className="match-controls">
-        {snapshot.game.status === 'active' ? (
+        {snapshot.game.status === 'active' && currentPlayer && snapshot.game.aggregate_allowed ? (
           <>
             <div className="turn-caption"><span className="live-dot" /> Rzuca <strong>{currentPlayer?.name}</strong></div>
             <form onSubmit={handleSubmit} className="score-form">
@@ -547,7 +561,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
               </button>
             </form>
           </>
-        ) : (
+        ) : snapshot.game.status === 'active' ? <p>{currentPlayer ? 'Wpisuj pojedyncze lotki poniżej.' : 'Wynik jest wstrzymany do zapisania bull-off.'}</p> : (
           <button className="button button-primary button-large" type="button" disabled={busy} onClick={handleExit}><Trophy aria-hidden="true" /> Wróć do panelu</button>
         )}
 

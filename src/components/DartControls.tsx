@@ -33,7 +33,7 @@ export default function DartControls({ snapshot, disabled, run }: { snapshot: Ga
     if (snapshot.game.current_player_id !== null) run(() => api.dart(snapshot.game.id, snapshot.game.current_player_id!, hit, snapshot.game.revision));
   };
   return <>
-    {snapshot.game.status === 'active' && <section className="panel single-darts">
+    {snapshot.game.status === 'active' && snapshot.game.current_player_id !== null && <section className="panel single-darts">
       <h2>Pojedyncza lotka</h2>
       <p>Wizyta {snapshot.game.context.visit_no} · lotka {snapshot.game.context.dart_no}/3. Wynik zatwierdza serwer.</p>
       <div className="multiplier-switch">{['S', 'D', 'T'].map(m => <button className={`button ${m === multiplier ? 'button-primary' : 'button-secondary'}`} type="button" key={m} aria-pressed={m === multiplier} disabled={disabled} onClick={() => setMultiplier(m)}>{m === 'S' ? 'Single' : m === 'D' ? 'Double' : 'Triple'}</button>)}</div>

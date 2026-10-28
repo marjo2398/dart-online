@@ -166,8 +166,9 @@ function assertScope(array $actor, ?int $gameId): void
     if ($assigned !== null && $assigned !== $gameId) { problem(403,'game-access-denied','Urządzenie nie ma dostępu do tego meczu.'); }
 }
 
-function authorizeCommand(array $actor, string $action, array $input): void
+function authorizeCommand(PDO $pdo, array $actor, string $action, array $input): void
 {
+    if (strpos($action,'template-')===0 && ($actor['role']!=='admin' || !supportsFormats())) { problem(403,'admin-required','Szablony edytuje administrator WWW.'); }
     $adminOnly = ['player-delete','game-delete','device-code-create','device-revoke'];
     if (in_array($action,$adminOnly,true) && $actor['role'] !== 'admin') { problem(403,'admin-required','Ta operacja wymaga administratora WWW.'); }
     if (in_array($action,['player-create','game-create'],true)) {
@@ -175,7 +176,10 @@ function authorizeCommand(array $actor, string $action, array $input): void
         assertScope($actor,null);
         return;
     }
-    if (isset($input['game_id'])) { assertScope($actor,requiredInt($input,'game_id',1,PHP_INT_MAX)); }
+    if (isset($input['game_id'])) {
+        $id=requiredInt($input,'game_id',1,PHP_INT_MAX); assertScope($actor,$id);
+        assertFormatClient(fetchGameRow($pdo,$id));
+    }
     if ($action === 'observation-create') {
         if (!$actor['device'] || !in_array($actor['role'],['operator','camera'],true)) { problem(403,'camera-required','Publikować może aktywne urządzenie kamery.'); }
     } elseif (!in_array($actor['role'],['admin','operator'],true)) { problem(403,'operator-required','Ta operacja wymaga operatora.'); }
@@ -189,20 +193,22 @@ function bumpGame(PDO $pdo, int $gameId): void
 
 function runCommand(PDO $pdo, string $action, array $body): array
 {
-    $known = ['player-create','player-delete','game-create','game-delete','game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','device-code-create','device-revoke','camera-select','observation-create','observation-review'];
+    $known = ['template-save','template-delete','starter-select','player-create','player-delete','game-create','game-delete','game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','device-code-create','device-revoke','camera-select','observation-create','observation-review'];
     if (!in_array($action,$known,true)) { problem(404,'unknown-action','Nieznana operacja API.'); }
     $commandId = requiredUuid($body,'command_id');
     $revision = requiredInt($body,'expected_revision',0,PHP_INT_MAX);
     $hash = hash('sha256',canonicalJson(['action'=>$action,'body'=>$body]));
     return transaction($pdo, static function () use ($pdo,$action,$body,$commandId,$revision,$hash): array {
         $actor = authenticateActor($pdo); // Recheck expiry/revocation after acquiring write lock, before deduplication.
-        authorizeCommand($actor,$action,$body);
+        authorizeCommand($pdo,$actor,$action,$body);
         $previous = sqlOne($pdo,'SELECT * FROM commands WHERE actor=? AND command_id=?',[$actor['actor'],$commandId]);
         if ($previous) {
             if (!hash_equals($previous['payload_hash'],$hash)) { problem(409,'command-payload-conflict','Ten identyfikator komendy był użyty z innymi danymi.'); }
-            return json_decode($previous['result'],true,512,JSON_THROW_ON_ERROR);
+            $result=json_decode($previous['result'],true,512,JSON_THROW_ON_ERROR);
+            assertResultClient($result);
+            return $result;
         }
-        $gameActions = ['game-delete','game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','camera-select','observation-create','observation-review'];
+        $gameActions = ['starter-select','game-delete','game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','camera-select','observation-create','observation-review'];
         $gameId = in_array($action,$gameActions,true) ? requiredInt($body,'game_id',1,PHP_INT_MAX) : null;
         $before = $gameId !== null ? fetchGameSnapshot($pdo,$gameId) : null;
         if (($before['game']['revision'] ?? 0) !== $revision) { problem(409,'revision-conflict','Mecz zmienił się na innym ekranie. Odśwież wynik i podejmij decyzję ponownie.',['revision'=>$before['game']['revision'] ?? 0]); }
@@ -213,7 +219,7 @@ function runCommand(PDO $pdo, string $action, array $body): array
             $target = $lastVisit['mode'] === 'darts' && $lastDarts ? $lastDarts[count($lastDarts) - 1]['id'] : (string) $lastVisit['id'];
         }
         $result = dispatchCommand($pdo,$actor,$action,$body);
-        $changesScore = in_array($action,['game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','camera-select'],true)
+        $changesScore = in_array($action,['starter-select','game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','camera-select'],true)
             || ($action === 'observation-review' && ($body['decision'] ?? '') === 'accept');
         if ($gameId !== null && $changesScore) {
             bumpGame($pdo,$gameId);
@@ -234,6 +240,9 @@ function runCommand(PDO $pdo, string $action, array $body): array
 function dispatchCommand(PDO $pdo, array $actor, string $action, array $body): array
 {
     switch ($action) {
+        case 'template-save': return saveTemplate($pdo,$body);
+        case 'template-delete': return deleteTemplate($pdo,$body);
+        case 'starter-select': return selectStarter($pdo,$body);
         case 'player-create': return createPlayer($pdo,$body);
         case 'player-delete': return deletePlayer($pdo,requiredInt($body,'player_id',1,PHP_INT_MAX));
         case 'game-create': return createGame($pdo,$body);
@@ -266,19 +275,13 @@ function recordDart(PDO $pdo, array $body, array $actor, ?string $observationId)
 {
     $id = requiredInt($body,'game_id',1,PHP_INT_MAX);
     $player = requiredInt($body,'player_id',1,PHP_INT_MAX);
-    [$points,$double] = dartValue($body['field'] ?? null);
+    dartValue($body['field'] ?? null);
     $snapshot = fetchGameSnapshot($pdo,$id);
     if ($snapshot['game']['status'] !== 'active') { problem(409,'game-finished','Mecz jest zakończony.'); }
     if ($snapshot['game']['current_player_id'] !== $player) { problem(409,'wrong-player-turn','Rzuca inny zawodnik.'); }
-    $state = $snapshot['players'][$snapshot['players'][0]['id'] === $player ? 0 : 1];
     $partial = $snapshot['partial_visit'];
-    $declared = ($partial['declared_score'] ?? 0) + $points;
     $used = ($partial['darts_used'] ?? 0) + 1;
-    $remaining = $state['remaining'] - $points;
-    $checkout = $remaining === 0 && $double;
-    $bust = $remaining < 0 || $remaining === 1 || ($remaining === 0 && !$double);
-    $complete = $bust || $checkout || $used === 3;
-    $values = [$declared,$bust ? 0 : $declared,$used,(int)$bust,(int)$checkout,(int)$complete];
+    $values = [0,0,$used,0,0,0];
     if ($partial) {
         $visitId = $partial['id'];
         $pdo->prepare('UPDATE visits SET declared_score=?,applied_score=?,darts_used=?,is_bust=?,is_checkout=?,is_complete=? WHERE id=?')->execute(array_merge($values,[$visitId]));
@@ -292,7 +295,8 @@ function recordDart(PDO $pdo, array $body, array $actor, ?string $observationId)
         $dartId,$id,$snapshot['game']['current_leg'],$visitId,$snapshot['game']['context']['visit_no'],$player,$used,$body['field'],
         $observationId !== null ? 'camera-confirmed' : 'manual',$actor['device']['id'] ?? null,$observationId
     ]);
-    if ($checkout && $state['legs'] + 1 >= $snapshot['game']['legs_to_win']) { finishGame($pdo,$id,$player); }
+    recalculateDartVisit($pdo,$id,$visitId);
+    persistCompletion($pdo,$id);
     return ['dart_id'=>$dartId];
 }
 
@@ -300,13 +304,16 @@ function undoScoring(PDO $pdo, int $gameId): array
 {
     $visit = sqlOne($pdo,'SELECT * FROM visits WHERE game_id=? ORDER BY visit_no DESC LIMIT 1',[$gameId]);
     if (!$visit) { problem(409,'nothing-to-undo','Brak operacji do cofnięcia.'); }
+    $g=fetchGameRow($pdo,$gameId);
+    $results=json_decode($g['starter_results'],true,32,JSON_THROW_ON_ERROR);
+    foreach ($results as $leg=>$value) { if ((int)$leg>(int)$visit['leg_no']) { unset($results[$leg]); } }
+    $pdo->prepare('UPDATE games SET starter_results=? WHERE id=?')->execute([json_encode((object)$results,JSON_THROW_ON_ERROR),$gameId]);
     if ($visit['mode'] === 'darts') {
         $dart = sqlOne($pdo,'SELECT * FROM darts WHERE visit_id=? AND active=1 ORDER BY dart_no DESC LIMIT 1',[$visit['id']]);
         if (!$dart) { problem(409,'invalid-dart-history','Brak szczegółowej lotki.'); }
         $pdo->prepare('UPDATE darts SET active=0 WHERE id=?')->execute([$dart['id']]);
         if ((int)$visit['darts_used'] > 1) {
-            $score = (int)$visit['declared_score'] - dartValue($dart['field'])[0];
-            $pdo->prepare('UPDATE visits SET declared_score=?,applied_score=?,darts_used=darts_used-1,is_bust=0,is_checkout=0,is_complete=0 WHERE id=?')->execute([$score,$score,$visit['id']]);
+            recalculateDartVisit($pdo,$gameId,(int)$visit['id']);
         } else {
             $pdo->prepare('DELETE FROM visits WHERE id=?')->execute([$visit['id']]);
         }
@@ -394,13 +401,14 @@ function joinDevice(PDO $pdo, array $body): array
     return transaction($pdo,static function () use ($pdo,$body,$joinId,$code,$name,$hash): array {
         $old = sqlOne($pdo,'SELECT * FROM devices WHERE join_id=?',[$joinId]);
         if ($old) {
+            if ($old['game_id']!==null) { assertFormatClient(fetchGameRow($pdo,(int)$old['game_id'])); }
             if (!hash_equals($old['join_hash'],$hash)) { problem(409,'join-payload-conflict','Identyfikator parowania miał inne dane.'); }
             if ((bool)$old['revoked'] || (int)$old['expires_at']<=time()) { problem(401,'device-expired','Dostęp wygasł. Użyj nowego kodu.'); }
             return ['token'=>deviceToken($old['id'],$joinId),'device'=>publicDevice($old)];
         }
         $grant = sqlOne($pdo,'SELECT * FROM device_codes WHERE code_hash=?',[hash('sha256',$code)]);
         if (!$grant || $grant['used_by']!==null || (int)$grant['expires_at']<=time()) { problem(401,'invalid-pairing-code','Kod jest nieważny, wykorzystany lub wygasł.'); }
-        if ($grant['game_id'] !== null) { fetchGameRow($pdo,(int)$grant['game_id']); }
+        if ($grant['game_id'] !== null) { assertFormatClient(fetchGameRow($pdo,(int)$grant['game_id'])); }
         $id=uuid(); $token=deviceToken($id,$joinId);
         $pdo->prepare('INSERT INTO devices(id,name,role,game_id,token_hash,expires_at,join_id,join_hash) VALUES (?,?,?,?,?,?,?,?)')->execute([
             $id,trim($name),$grant['role'],$grant['game_id'],hash('sha256',$token),time()+(int)$grant['device_lifetime'],$joinId,$hash

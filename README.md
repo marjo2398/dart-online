@@ -10,9 +10,12 @@ Gałąź integracji dodaje wspólny wynik WWW/APK, pojedyncze lotki i częściow
 
 ## Funkcje
 
-- mecze 301, 501, 701 i 901;
-- formaty do 1, 2, 3 albo 5 wygranych legów;
-- double-out, bust i naprzemienne rozpoczynanie legów;
+- „Szybkie 501” (straight-in/double-out, BO3) i pełna „Własna rozgrywka” z podsumowaniem serwera;
+- mecze 301/501/701/901 oraz własny wynik 2–10001, straight/double/master-in/out;
+- legi lub sety: do N wygranych / best of N, osobne legi w secie, wszystkie N legów z remisem;
+- przewaga 2 legów, limit dodatkowych par i sudden death, odrębne reguły ostatniego seta;
+- zapisany los/bull-off, osobne rotacje setów/legów i oczekiwanie na startera decidera;
+- wspólne szablony serwera: zapis, edycja, nazwa, ulubione, usunięcie i ponowne użycie;
 - cofnięcie ostatniej wizyty, także checkoutu i rzutu kończącego mecz;
 - pojedyncze pola, częściowe wizyty oraz korekta/cofnięcie ostatniej lotki lub wizyty sumarycznej;
 - synchronizacja rewizji, deduplikacja komend i audyt zmian;
@@ -26,6 +29,8 @@ Gałąź integracji dodaje wspólny wynik WWW/APK, pojedyncze lotki i częściow
 - logowanie PIN-em lub hasłem, sesja HttpOnly/SameSite, CSRF i limit prób logowania.
 
 Backend jest źródłem prawdy. Po zapisie wizyty i cofnięciu frontend przyjmuje cały snapshot meczu zwrócony przez API.
+
+Etap formatów z 28.10.2026 wykonano **lokalnie, bez wdrożenia**. APK1.0.1 obsługuje dawne formaty; serwer filtruje i blokuje nowe dla starego klienta. Master/straight-out to warianty dodatkowe. Przed otwarciem double/master-in i przy master-out wpisuj pojedyncze lotki. [Reguły i granice](docs/SPEC.md), [testy](docs/TESTING.md), [dalszy plan](docs/ROADMAP.md).
 
 ## Wymagania lokalne
 

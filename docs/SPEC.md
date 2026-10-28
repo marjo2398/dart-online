@@ -1,0 +1,19 @@
+# Format meczu — etap 1 WWW
+
+Dwie różne osoby z katalogu. Serwer PHP/SQLite jest jedynym właścicielem wyniku. „Szybkie 501”: 501, straight-in/double-out, do 2 legów (BO3), zawodnik 1 rozpoczyna, legi naprzemiennie. Własny format obejmuje X01 od 2 do 10001 (także 301/501/701/901), wejście straight/double/master i wyjście double/straight/master. Master i straight-out są wariantami dodatkowymi, bez deklaracji zgodności z regulaminem zawodów.
+
+Konfiguracja `version:1` jest kopią w meczu. Jedyna reprezentacja długości to `match.unit` i całkowite `target` 1–99. Dla `legs` target oznacza wygrane legi, dla `sets` wygrane sety, dla `fixed` wszystkie legi, po których możliwy jest remis. BO nie jest przechowywane: BO N (nieparzyste 1–197) daje target=(N+1)/2. Set ma oddzielne `legs_per_set` 1–99. Zmiana/usunięcie szablonu nie zmienia meczu.
+
+Przewaga dwóch legów dotyczy meczu legowego albo legów wewnątrz każdego seta; liczba wygranych setów nie jest przedłużana. Od remisu (target−1):(target−1) trzeba uzyskać przewagę 2. `extra_pairs:null` znaczy bez limitu; K=0–50 oznacza dodatkowe pary legów ponad ten remis. Przy (target−1+K):(target−1+K) jeden leg sudden death rozstrzyga. `final_set` może zmienić próg legów i przewagę/limit wyłącznie gdy obaj mają match.target−1 setów. Format `fixed` zabrania przewagi i specjalnego decidera.
+
+Pierwszy starter: wskazany, wylosowany przez serwer lub wskazany zwycięzca rzeczywistego bull-off. Los oraz wynik bull-off są zapisane. Początki setów: naprzemiennie od pierwszego startera albo zawsze ten sam. Początki legów: naprzemiennie od startera seta albo zawsze starter seta; numeracja rotacji zeruje się w nowym secie. W meczu legowym rotacja liczy globalne legi. Decider: rotacja, początkowy starter meczu albo nowy bull-off. Reguła decidera ma pierwszeństwo, także dla jednolegowego seta/meczu. Początkowy bull-off wystarcza dla pierwszego lega; pozostałe wymagają osobnej decyzji. Do niej `current_player_id` i `leg_starter_id` są null, a serwer odrzuca rzuty.
+
+Double otwiera/kończy D1–D20 lub wewnętrzny bull 50 (=D25). Master dopuszcza dodatkowo T1–T20. Zewnętrzny bull 25 nie otwiera/kończy double ani master. Straight-out może pozostawić 1; double/master-out daje bust przy pozostawieniu 1, przekroczeniu lub zerze bez wymaganego pola. Bust unieważnia całą wizytę i otwarcie osiągnięte w tej wizycie. Lotki przed otwarciem zużywają rzut, bez odjęcia punktów. Otwarcie resetuje się w każdym legu.
+
+Przed otwarciem double/master-in i przy master-out wymagane są pojedyncze lotki (także MISS), bez domyślania przebiegu sumy. Po otwarciu i dla straight/double-out działają sumy: trzy lotki w zwykłej wizycie, faktyczna liczba przy bust/checkout; double-out wymaga potwierdzenia operatora. Nie powstają fikcyjne pola lotek, cele ani próby double. Kamera wyłącznie proponuje; potwierdzenie człowieka przechodzi przez ten sam zapis lotki.
+
+Cofnięcie ostatniej lotki lub wizyty odtwarza wynik, otwarcie, leg/set/mecz, remis i startera. Cofnięcie przejścia do przyszłego decidera usuwa jego rozstrzygnięcie bull-off; ponowne dojście wymaga nowego wskazania. Cofnięcie samego rzutu w deciderze zachowuje jego startera. Korekta dotyczy ostatniego zapisu, zgodnie z dotychczasowym zakresem. Rewizje rosną, UUID komend i audyt pozostają.
+
+Globalne statystyki katalogu obejmują wyłącznie dotychczasowe formaty (jawny opis zakresu). Nowe warianty mają oddzielne statystyki w swoim meczu. Nie porównujemy ich bez oznaczenia.
+
+Podstawa standardowego double-out/bulla/bust: [DRA Rules 2019, §5.3.2–5.3.8, oficjalne archiwum PDC](https://www.pdc.tv/sites/default/files/2020-08/DRA-Rules.pdf), wykorzystany indeksowany fragment sprawdzony 28.10.2026. To dokument archiwalny, nie weryfikacja aktualnego regulaminu konkretnego turnieju. Master, double-in, rotacje, limity i szablony powyżej są jawnymi regułami produktu.
