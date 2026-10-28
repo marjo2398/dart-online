@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -16,6 +16,9 @@ import {
 import { ApiError, api, messageFrom } from '../api';
 import DartControls from './DartControls';
 import Devices from './Devices';
+import ScoreEntry, { CheckoutPanel } from './ScoreEntry';
+import HistoryCorrection from './HistoryCorrection';
+import MatchManagement, { phaseNames, decisionNames } from './MatchManagement';
 import WriteStatus, { useWriteState } from './WriteStatus';
 import type { GameSnapshot, MatchPlayerState, Visit } from '../types';
 
@@ -23,6 +26,7 @@ interface DartGameProps {
   initialSnapshot: GameSnapshot;
   onExit: () => Promise<void>;
   onSessionExpired: () => void;
+  onRematch: (s: GameSnapshot) => void;
 }
 
 type PendingVisit =
@@ -152,9 +156,15 @@ function PlayerBoard({ player, active, visits, setsMode }: { player: MatchPlayer
   );
 }
 
-export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: DartGameProps) {
+export default function DartGame({ initialSnapshot, onExit, onSessionExpired, onRematch }: DartGameProps) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [inputValue, setInputValue] = useState('');
+  const [entryMode, setEntryMode] = useState<'score' | 'remaining'>('score');
+  const [hintsEnabled, setHintsEnabled] = useState(false);
+  const [remainingDialog, setRemainingDialog] = useState<{ value: number; revision: number } | null>(null);
+  const [remainingDarts, setRemainingDarts] = useState(3);
+  const [remainingDouble, setRemainingDouble] = useState(false);
+  const [zeroConfirmed, setZeroConfirmed] = useState(false);
   const [pendingVisit, setPendingVisit] = useState<PendingVisit | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -167,6 +177,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
   const [fresh, setFresh] = useState(true);
   const writeState = useWriteState();
   const writesDisabled = busy || !fresh || writeState === 'unknown' || writeState === 'pending';
+  const scoringDisabled = writesDisabled || snapshot.game.operation_state !== 'playing' || !snapshot.permissions.includes('score');
   const snapshotRef = useRef(initialSnapshot);
   const generationRef = useRef(0);
 
@@ -175,6 +186,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
   const recognitionRef = useRef<Recognition | null>(null);
   const commandRef = useRef<(command: string) => Promise<void>>(async () => undefined);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
 
   const currentPlayer = snapshot.players.find((player) => player.id === snapshot.game.current_player_id) ?? null;
   const winner = snapshot.players.find((player) => player.id === snapshot.game.winner_id) ?? null;
@@ -184,8 +196,8 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
 
   const installSnapshot = (next: GameSnapshot, remote = false) => {
     if (next.game.id !== snapshotRef.current.game.id || next.game.revision < snapshotRef.current.game.revision) return;
-    if (remote && next.game.revision !== snapshotRef.current.game.revision) {
-      setPendingVisit(null); setInputValue('');
+    if (next.game.revision !== snapshotRef.current.game.revision) {
+      setPendingVisit(null); setRemainingDialog(null); setInputValue('');
     }
     snapshotRef.current = next;
     setSnapshot(next);
@@ -257,6 +269,9 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
   };
 
   const describeSnapshot = (next: GameSnapshot) => {
+    if (next.game.operation_state === 'confirmed') return 'Wynik zatwierdzony.';
+    if (next.game.is_paused) return 'Mecz w pauzie.';
+    if (next.game.decision) return `${decisionNames[next.game.decision.kind]}. ${next.game.decision.reason}`;
     if (next.game.result === 'draw') return 'Koniec meczu — remis.';
     if (next.game.phase === 'awaiting_starter') return 'Oczekiwanie na wynik bull-off.';
     const visit = next.visits.at(-1);
@@ -270,13 +285,13 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
     }
     const remaining = next.players.find((candidate) => candidate.id === visit.player_id)?.remaining;
     if (visit.applied_score === 180) return 'One hundred and eighty!';
-    if (remaining === 50) return 'Zostało 50. Bullseye.';
-    if (next.game.config.scoring.out === 'double' && remaining && remaining <= 40 && remaining % 2 === 0) return `Zostało ${remaining}. Double ${remaining / 2}.`;
+    if (hintsEnabled && remaining === 50) return 'Zostało 50. Bullseye.';
+    if (hintsEnabled && next.game.config.scoring.out === 'double' && remaining && remaining <= 40 && remaining % 2 === 0) return `Zostało ${remaining}. Double ${remaining / 2}.`;
     return `${visit.applied_score}. Zostało ${remaining}.`;
   };
 
   const sendVisit = async (score: number, dartsUsed: number, doubleConfirmed: boolean) => {
-    if (writesDisabled || !currentPlayer || snapshot.game.status === 'finished' || snapshot.partial_visit) return;
+    if (scoringDisabled || !currentPlayer || snapshot.game.status === 'finished' || snapshot.partial_visit) return;
     if (pendingVisit && pendingVisit.revision !== snapshotRef.current.game.revision) {
       setPendingVisit(null); setError('Mecz zmienił się na innym urządzeniu. Sprawdź turę i wpisz wynik ponownie.'); return;
     }
@@ -290,7 +305,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
   };
 
   const beginScore = async (score: number) => {
-    if (writesDisabled || busyRef.current || pendingVisit || !currentPlayer || snapshot.partial_visit) return;
+    if (scoringDisabled || busyRef.current || pendingVisit || remainingDialog || !currentPlayer || snapshot.partial_visit) return;
     if (!snapshot.game.aggregate_allowed) { setError('Ten zapis wymaga pojedynczych lotek.'); return; }
     if (!Number.isInteger(score) || score < 0 || score > 180) {
       setError('Wynik wizyty musi być liczbą całkowitą od 0 do 180.');
@@ -313,12 +328,6 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
     await sendVisit(score, 3, false);
   };
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (inputValue.trim() === '') return;
-    await beginScore(Number(inputValue));
-  };
-
   const answerDouble = (confirmed: boolean) => {
     if (!pendingVisit || pendingVisit.stage !== 'double') return;
     setPendingVisit({
@@ -331,7 +340,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
   };
 
   const handleUndo = async () => {
-    if (writesDisabled || !snapshot.can_undo) return;
+    if (writesDisabled || !snapshot.can_undo || !snapshot.permissions.includes('correct_last')) return;
     const undone = snapshot.visits.at(-1);
     await withLock(async () => {
       const next = await api.undoVisit(snapshot.game.id, snapshot.game.revision);
@@ -357,6 +366,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
 
   const handleVoiceCommand = async (rawCommand: string) => {
     const command = rawCommand.toLocaleLowerCase('pl-PL').trim();
+    setEntryMode('score');
     if (command.includes('cofnij')) {
       await handleUndo();
       return;
@@ -429,8 +439,9 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
   }, [refereeMessage, voiceEnabled]);
 
   useEffect(() => {
-    if (!busy && !pendingVisit && snapshot.game.status === 'active') inputRef.current?.focus();
-  }, [busy, pendingVisit, snapshot.game.status]);
+    if (pendingVisit || remainingDialog) dialogRef.current?.focus();
+    else if (!busy && snapshot.game.status === 'active') inputRef.current?.focus();
+  }, [busy, pendingVisit, remainingDialog, snapshot.game.status]);
 
   const toggleListening = () => {
     if (!recognitionRef.current || busy) return;
@@ -452,9 +463,19 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
 
   return (
     <main className="match-shell">
+      {remainingDialog && <div className="modal-backdrop" role="presentation"><section ref={dialogRef} tabIndex={-1} className="decision-modal" role="dialog" aria-modal="true" aria-label="Potwierdź stan pozostało" onKeyDown={e => { if (e.key === 'Escape' && !e.repeat && !busy) setRemainingDialog(null); if (e.key === 'Enter' && e.repeat) e.preventDefault(); }}>
+        <h2>Pozostało po wizycie: {remainingDialog.value}</h2>
+        <p>Oryginalny stan: {currentPlayer?.remaining}. Serwer sprawdzi osiągalność i zasady zakończenia.</p>
+        <label>Faktyczna liczba lotek<select value={remainingDarts} disabled={scoringDisabled} onChange={e => setRemainingDarts(Number(e.target.value))}>{[1,2,3].map(n => <option key={n}>{n}</option>)}</select></label>
+        {snapshot.game.config.scoring.out === 'double' && remainingDialog.value === 0 && <label><input type="checkbox" checked={remainingDouble} disabled={scoringDisabled} onChange={e => setRemainingDouble(e.target.checked)} /> Potwierdzam zakończenie ostatnią lotką na double</label>}
+        {remainingDialog.value === currentPlayer?.remaining && <label><input type="checkbox" checked={zeroConfirmed} disabled={scoringDisabled} onChange={e => setZeroConfirmed(e.target.checked)} /> To była rzeczywista wizyta za 0 punktów. Bust wpiszę jako sumę albo pola.</label>}
+        <div className="secondary-controls"><button type="button" className="button button-primary" disabled={scoringDisabled || remainingDialog.revision !== snapshot.game.revision} onClick={() => runCommand(async () => {
+          const next = await api.remaining(snapshot.game.id,currentPlayer!.id,remainingDialog.value,remainingDarts,remainingDouble,zeroConfirmed,remainingDialog.revision); setRemainingDialog(null); return next;
+        })}>Zatwierdź stan po wizycie</button><button type="button" className="button button-secondary" disabled={busy} onClick={() => setRemainingDialog(null)}>Anuluj</button></div>
+      </section></div>}
       {pendingVisit && (
         <div className="modal-backdrop" role="presentation">
-          <section className="decision-modal" role="dialog" aria-modal="true" aria-labelledby="decision-title">
+          <section ref={dialogRef} tabIndex={-1} className="decision-modal" role="dialog" aria-modal="true" aria-labelledby="decision-title" onKeyDown={e => { if (e.key === 'Escape' && !e.repeat && !busy) setPendingVisit(null); if (e.key === 'Enter' && e.repeat) e.preventDefault(); }}>
             <button type="button" className="modal-close" onClick={() => setPendingVisit(null)} disabled={busy} aria-label="Anuluj zapis wizyty"><X aria-hidden="true" /></button>
             <div className={`decision-icon ${pendingVisit.stage === 'darts' && pendingVisit.outcome === 'bust' ? 'danger' : ''}`}>
               {pendingVisit.stage === 'darts' && pendingVisit.outcome === 'bust' ? <X aria-hidden="true" /> : <Target aria-hidden="true" />}
@@ -506,6 +527,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
 
       <p className={fresh ? 'sync-status' : 'sync-status sync-warning'} role="status">{fresh ? `Połączono · rewizja ${snapshot.game.revision}` : 'Brak połączenia — ostatni wynik jest nieaktualny. Zapisy wstrzymane.'}</p>
       <WriteStatus onRecovered={recover} onAuthError={authError} />
+      <p role="status">Faza: <strong>{phaseNames[snapshot.game.operation_state]}</strong>{snapshot.game.status === 'finished' ? ` · zapisano wizyt: ${snapshot.visits.length}` : ` · wizyta ${snapshot.game.context.visit_no} · ${snapshot.game.current_player_id === null ? 'oczekiwanie na rozpoczynającego' : snapshot.partial_visit ? `pozostało lotek: ${3 - snapshot.partial_visit.darts_used}` : 'nowa wizyta, do 3 lotek; brak zapisanych pól'}`}</p>
       <p className="format-summary">{snapshot.game.format_description}</p>
 
       <section className="referee-strip" aria-live="polite">
@@ -521,7 +543,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
         <div className="match-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Zamknij">×</button></div>
       )}
 
-      {winner && (
+      {winner && snapshot.game.decision === null && (
         <section className="winner-banner">
           <Trophy aria-hidden="true" />
           <div><p className="eyebrow">Koniec meczu</p><h1>Wygrywa {winner.name}</h1><span>{snapshot.game.config.match.unit === 'sets' ? `${snapshot.players[0].sets} : ${snapshot.players[1].sets} sety` : `${snapshot.players[0].legs} : ${snapshot.players[1].legs} legi`}</span></div>
@@ -539,27 +561,10 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
         {snapshot.game.status === 'active' && currentPlayer && snapshot.game.aggregate_allowed ? (
           <>
             <div className="turn-caption"><span className="live-dot" /> Rzuca <strong>{currentPlayer?.name}</strong></div>
-            <form onSubmit={handleSubmit} className="score-form">
-              <label className="sr-only" htmlFor="visit-score">Wynik wizyty</label>
-              <input
-                ref={inputRef}
-                id="visit-score"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                max={180}
-                step={1}
-                value={inputValue}
-                onChange={(event) => setInputValue(event.target.value)}
-                placeholder="0–180"
-                disabled={writesDisabled || pendingVisit !== null || snapshot.partial_visit !== null}
-                autoComplete="off"
-              />
-              <button className="button button-primary score-submit" type="submit" disabled={writesDisabled || pendingVisit !== null || snapshot.partial_visit !== null || inputValue.trim() === ''}>
-                {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
-                <span>Zapisz</span>
-              </button>
-            </form>
+            <ScoreEntry inputRef={inputRef} value={inputValue} onChange={setInputValue} mode={entryMode} onMode={setEntryMode} remaining={currentPlayer.remaining}
+              disabled={scoringDisabled || pendingVisit !== null || remainingDialog !== null || snapshot.partial_visit !== null}
+              onZero={() => { setEntryMode('score'); void beginScore(0); }}
+              onSubmit={() => { if (entryMode === 'score') void beginScore(Number(inputValue)); else { setRemainingDialog({ value: Number(inputValue), revision: snapshot.game.revision }); setRemainingDarts(3); setRemainingDouble(false); setZeroConfirmed(false); } }} />
           </>
         ) : snapshot.game.status === 'active' ? <p>{currentPlayer ? 'Wpisuj pojedyncze lotki poniżej.' : 'Wynik jest wstrzymany do zapisania bull-off.'}</p> : (
           <button className="button button-primary button-large" type="button" disabled={busy} onClick={handleExit}><Trophy aria-hidden="true" /> Wróć do panelu</button>
@@ -576,14 +581,18 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired }: 
             {isListening ? <Mic aria-hidden="true" /> : <MicOff aria-hidden="true" />}
             {isListening ? 'Nasłuchuję…' : voiceAvailable ? 'Mikrofon' : 'Brak mikrofonu'}
           </button>
-          <button className="button button-secondary" type="button" disabled={writesDisabled || !snapshot.can_undo} onClick={handleUndo}>
+          <button className="button button-secondary" type="button" disabled={writesDisabled || !snapshot.can_undo || !snapshot.permissions.includes('correct_last')} onClick={handleUndo}>
             {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
             Cofnij ostatni zapis
           </button>
         </div>
         <p className="voice-hint">Komendy po polsku: „wynik sześćdziesiąt”, „wynik 180”, „cofnij”.</p>
       </section>
+      <CheckoutPanel snapshot={snapshot} enabled={hintsEnabled} setEnabled={setHintsEnabled} />
+      <MatchManagement snapshot={snapshot} disabled={writesDisabled} run={runCommand} onRematch={onRematch} />
       <DartControls snapshot={snapshot} disabled={writesDisabled} run={runCommand} />
+      <HistoryCorrection snapshot={snapshot} disabled={writesDisabled} run={runCommand} />
+      <section className="panel"><h2>Wygrane legi — hold / break</h2><ul>{snapshot.leg_results.map(l => <li key={l.leg_no}>Leg {l.leg_no}, set {l.set_no}: {snapshot.players.find(p => p.id === l.winner_id)?.name} · {l.kind === 'hold' ? 'hold — utrzymane rozpoczęcie' : l.kind === 'break' ? 'break — przełamanie' : 'starter nieznany'}; zaczynał {snapshot.players.find(p => p.id === l.starter_id)?.name ?? 'nieznany'}</li>)}</ul></section>
       <Devices gameId={snapshot.game.id} />
     </main>
   );

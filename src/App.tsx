@@ -19,6 +19,7 @@ import { ApiError, api, messageFrom } from './api';
 import DartGame from './components/DartGame';
 import Devices from './components/Devices';
 import GameSetup from './components/GameSetup';
+import { decisionNames, phaseNames } from './components/MatchManagement';
 import WriteStatus, { useWriteState } from './components/WriteStatus';
 import type { DashboardData, GameSnapshot, GameSummary, Player, SessionState } from './types';
 
@@ -137,7 +138,7 @@ function GameCard({
       </div>
       <div className="game-card-meta">
         <span>{game.format_description}</span>
-        <span>Leg {game.current_leg} · {game.visit_count} wizyt</span>
+        <span>{phaseNames[game.operation_state]} · leg {game.current_leg} · {game.visit_count} wizyt</span>
       </div>
       <div className="game-card-actions">
         <button className="button button-primary" type="button" disabled={busy} onClick={() => onResume(game.id)}>
@@ -203,7 +204,7 @@ function HistoryRow({ game, busy, onOpen, onDelete }: {
       <div className="history-icon"><Trophy aria-hidden="true" /></div>
       <div className="history-main">
         <strong>{game.player1.name} <span>{game.config.match.unit === 'sets' ? game.player1.sets : game.player1.legs}</span> : <span>{game.config.match.unit === 'sets' ? game.player2.sets : game.player2.legs}</span> {game.player2.name}</strong>
-        <small>{game.result === 'draw' ? 'Remis' : 'Wygrywa ' + winner.name} · {game.format_description}</small>
+        <small>{game.decision ? decisionNames[game.decision.kind] : game.result === 'draw' ? 'Remis' : 'Wygrywa ' + winner.name} · {phaseNames[game.operation_state]} · {game.format_description}</small>
       </div>
       <time dateTime={game.finished_at ?? undefined}>{formatDate(game.finished_at ?? game.updated_at)}</time>
       <button type="button" className="icon-link" disabled={busy} onClick={() => onOpen(game.id)} title="Otwórz mecz" aria-label="Otwórz szczegóły meczu">
@@ -351,7 +352,7 @@ export default function App() {
   }
 
   if (currentGame) {
-    return <DartGame key={currentGame.game.id} initialSnapshot={currentGame} onExit={handleExitGame} onSessionExpired={() => { setSession(null); setCurrentGame(null); setDashboard(null); setError('Sesja wygasła. Zaloguj się ponownie; niezakończona operacja pozostaje do bezpiecznego ponowienia.'); }} />;
+    return <DartGame key={currentGame.game.id} onRematch={setCurrentGame} initialSnapshot={currentGame} onExit={handleExitGame} onSessionExpired={() => { setSession(null); setCurrentGame(null); setDashboard(null); setError('Sesja wygasła. Zaloguj się ponownie; niezakończona operacja pozostaje do bezpiecznego ponowienia.'); }} />;
   }
 
   if (!dashboard) return <LoadingScreen />;

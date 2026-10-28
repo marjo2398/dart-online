@@ -1,4 +1,16 @@
-# Dart Online — stan 28.10.2026
+# Dart Online — stan 29.10.2026
+
+## Etap 2 WWW — wykonany lokalnie, bez wdrożenia
+
+Trzy sposoby wpisywania: suma/pola/„pozostało”, klawiatura ekranowa i laptopa, popularne wartości, opcjonalne checkouty wg lotek i preferowanego double. Zachowane głos i komendy; wskazówki zejścia można wyłączyć. Serwer sprawdza również legalność sekwencji przed bust/checkout, bez wymyślania pól.
+
+Korekta wcześniejszej sumy/lotki: podgląd bez zapisu, token/rewizja, deterministyczny replay z zachowaniem ID/graczy/legów lub jawne wycofanie sprzecznego fragmentu. Inactive i wersje/audyt zachowują historię. Pauza/wznowienie chronią częściową wizytę i unieważniają kamerę. Hold/break, osobny idempotentny rewanż. Poddanie/walkower/przerwanie/anulowanie mają osobne decyzje i jawny wpływ na statystyki, bez fikcyjnych legów. Wynik rozstrzygnięty wymaga zatwierdzenia; po nim lock, ponowne otwarcie z prawem i uzasadnieniem.
+
+Migracja SQLitev5 zachowuje stare mecze/dane/ID/statusy i dotychczasowe prawa urządzeń, bez automatycznego zatwierdzania. Prawa history/pause/adjudicate/confirm/reopen przydzielane jawnie; PIN oznacza sesję admina, nie osobę. Backend blokuje niedozwolone zapisy starego APK, zachowując UUID/treść i pierwotne odpowiedzi retry. APK1.0.1 bez zmian; nowa obsługa formatów/faz wymaga osobnego Androida.
+
+Weryfikacja: operacje12 grup, API19/19, formaty13 grup, migracjev3/v4→v5 z powtórzeniem/rollbackiem, klient WWW9 kontroli, TypeScript/build/PHP PASS. Dwie karty: korekta i unieważnienie szkicu, pauza/reload częściowej wizyty, wznowienie, koniec, lock i otwarcie; dodatkowo rewanż/Escape/walkower. [Testy](docs/TESTING.md), [instrukcja operatora](docs/OPERATOR.md), [API](docs/API.md).
+
+Gałąź `feature/apk-integration-20261025`; etap1:96bd061. Ostatni zapisany stan produkcji: konsolidacja a7f7f06 poniżej; w tym etapie bez deploy/push/merge i zapisów produkcyjnych. Android72ca997 i cudze TASK/audyt niezmienione. Następne: osobna decyzja o etapie3 WWW, wdrożeniu i przyszłym Androidzie; próby telefonów nadal oczekujące.
 
 ## Etap 1 WWW — wykonany lokalnie, bez wdrożenia
 

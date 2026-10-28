@@ -38,18 +38,20 @@ file_put_contents(__DIR__.'/sequence.txt',$p->query("SELECT seq FROM sqlite_sequ
 execFileSync(php,[...args,join(scratch,'seed.php')]);
 const rollback=join(scratch,'rollback');mkdirSync(join(rollback,'data'),{recursive:true});
 cpSync(join(api,'data/dart-online.sqlite'),join(rollback,'data/dart-online.sqlite'));
-for(const file of ['index.php','sync.php','formats.php']) cpSync(join(repo,'public/api',file),join(rollback,file));
+for(const file of ['index.php','sync.php','formats.php','operations.php']) cpSync(join(repo,'public/api',file),join(rollback,file));
 writeFileSync(join(scratch,'rollback.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/rollback/index.php';$p=openDatabase();
 $p->exec('CREATE TABLE templates(incompatible_column TEXT)');$failed=false;
 try{migrateDatabase($p);}catch(Throwable $e){$failed=true;}
 if(!$failed || columnExists($p,'games','config_json') || columnExists($p,'visits','opened_after') || $p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn()!=3 || $p->query('PRAGMA foreign_keys')->fetchColumn()!=1)throw new Exception('Migration did not roll back');echo 'rollback ok';`);
 assert.equal(execFileSync(php,[...args,join(scratch,'rollback.php')],{encoding:'utf8'}),'rollback ok');
-for(const file of ['index.php','sync.php','formats.php']) cpSync(join(repo,'public/api',file),join(api,file));
+for(const file of ['index.php','sync.php','formats.php','operations.php']) cpSync(join(repo,'public/api',file),join(api,file));
 writeFileSync(join(scratch,'verify.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/api/index.php';${dump}
 $p=openDatabase();$before=json_decode(file_get_contents(__DIR__.'/before.json'),true,512,JSON_THROW_ON_ERROR);
 migrateDatabase($p);migrateDatabase($p);$after=dumpData($p);
-foreach($after['games'] as &$row) {if(!$row['legacy_compatible'])throw new Exception('Legacy compatibility lost');$c=json_decode($row['config_json'],true);if($c!==defaultFormat((int)$row['starting_score'],(int)$row['legs_to_win']))throw new Exception('Wrong legacy rules');unset($row['config_json'],$row['starter_results'],$row['legacy_compatible']);}unset($row);
-foreach($after['visits'] as &$row) {if(!$row['opened_after'])throw new Exception('Legacy opening lost');unset($row['opened_after']);}unset($row);
+foreach($after['games'] as &$row) {if(!$row['legacy_compatible'])throw new Exception('Legacy compatibility lost');$c=json_decode($row['config_json'],true);if($c!==defaultFormat((int)$row['starting_score'],(int)$row['legs_to_win']))throw new Exception('Wrong legacy rules');unset($row['config_json'],$row['starter_results'],$row['legacy_compatible'],$row['is_paused'],$row['decision_json'],$row['confirmed_at'],$row['stats_eligible']);}unset($row);
+foreach($after['visits'] as &$row) {if(!$row['opened_after'])throw new Exception('Legacy opening lost');unset($row['opened_after'],$row['active'],$row['double_confirmed'],$row['input_mode']);}unset($row);
+foreach(['devices','device_codes'] as $table){foreach($after[$table] as &$row){unset($row['permissions_json']);}unset($row);}
+foreach($after['audit'] as &$row){unset($row['actor_context'],$row['details_json']);}unset($row);
 if($before!==$after)throw new Exception('Data changed');
 if($p->query("SELECT seq FROM sqlite_sequence WHERE name='games'")->fetchColumn()!=file_get_contents(__DIR__.'/sequence.txt'))throw new Exception('Deleted id could be reused');
 if($p->query('PRAGMA foreign_keys')->fetchColumn()!=1 || $p->query('PRAGMA foreign_key_check')->fetchAll()!==[])throw new Exception('Foreign keys invalid');
@@ -59,4 +61,4 @@ if(count(fetchGameRows($p,true))!==1 || count(fetchGameRows($p,false))!==1)throw
 echo 'v3 data, history, devices, commands, stats, IDs, partial visits, FK and repeated migration preserved';
 `);
 assert.match(execFileSync(php,[...args,join(scratch,'verify.php')],{encoding:'utf8'}),/preserved/);
-console.log(`PASS v3 → v4 full fixture preserved, repeat safe, injected failure rolls back; scratch=${scratch}`);
+console.log(`PASS v3 → v5 full fixture preserved, repeat safe, injected failure rolls back; scratch=${scratch}`);

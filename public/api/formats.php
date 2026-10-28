@@ -105,8 +105,8 @@ SQL
                 CREATE INDEX idx_games_players ON games(player1_id,player2_id);
                 CREATE INDEX idx_games_winner ON games(winner_id);
                 CREATE TABLE templates(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,config_json TEXT NOT NULL,favorite INTEGER NOT NULL DEFAULT 0,revision INTEGER NOT NULL DEFAULT 0);");
-            $pdo->prepare("UPDATE sqlite_sequence SET seq=MAX(seq,?) WHERE name='games'")->execute([$sequence]);
-            $pdo->prepare("INSERT INTO sqlite_sequence(name,seq) SELECT 'games',? WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name='games')")->execute([$sequence]);
+            $pdo->prepare("UPDATE sqlite_sequence SET seq=MAX(seq,CAST(? AS INTEGER)) WHERE name='games'")->execute([$sequence]);
+            $pdo->prepare("INSERT INTO sqlite_sequence(name,seq) SELECT 'games',CAST(? AS INTEGER) WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name='games')")->execute([$sequence]);
             ensureColumn($pdo,'visits','opened_after','INTEGER NOT NULL DEFAULT 1');
             $seed = $pdo->prepare('INSERT INTO templates(name,config_json) VALUES (?,?)');
             foreach ([2,4,6] as $target) { $seed->execute(['501 BO'.($target*2-1),json_encode(defaultFormat(501,$target),JSON_THROW_ON_ERROR)]); }
@@ -114,7 +114,6 @@ SQL
             $seed->execute(['501 — do 3 setów, po 3 legi',json_encode($c,JSON_THROW_ON_ERROR)]);
             if ($pdo->query('PRAGMA foreign_key_check')->fetchAll() !== []) { throw new RuntimeException('Format migration: foreign key check failed'); }
             $pdo->exec("UPDATE schema_meta SET value='4' WHERE key='schema_version'");
-            rebuildAllPlayerStats($pdo);
         });
     } finally { $pdo->exec('PRAGMA foreign_keys=ON'); }
 }
@@ -209,7 +208,7 @@ function replayFormat(array $game, array $visits): array
     $opened=[$p1=>$c['scoring']['in']==='straight',$p2=>$c['scoring']['in']==='straight'];
     $legs=$sets=$setLegs=$points=$darts=$high=$legDarts=$zero;
     $leg=1; $set=1; $legInSet=1; $setStarter=$initial; $starter=$initial; $current=$initial;
-    $winner=null; $finished=false; $results=json_decode($game['starter_results'],true,32,JSON_THROW_ON_ERROR);
+    $winner=null; $finished=false; $results=json_decode($game['starter_results'],true,32,JSON_THROW_ON_ERROR); $legResults=[];
     $phase='regular'; $decider=false; $sudden=false; $target=1; $rule=$c['deciding'];
     $prepare = static function () use (&$phase,&$decider,&$sudden,&$target,&$rule,&$starter,&$current,$c,&$setLegs,&$legs,&$sets,$p1,$p2,&$leg,&$legInSet,&$setStarter,$initial,$other,$results): void {
         $lastSet=$c['match']['unit']==='sets' && $sets[$p1]===$c['match']['target']-1 && $sets[$p2]===$c['match']['target']-1;
@@ -237,6 +236,7 @@ function replayFormat(array $game, array $visits): array
         $high[$id]=max($high[$id],$v['applied_score']); $legDarts[$id]+=$v['darts_used'];
         $opened[$id]=$v['opened_after'];
         if ($v['is_checkout']) {
+            $legResults[]=['leg_no'=>$leg,'set_no'=>$set,'winner_id'=>$id,'starter_id'=>$starter,'kind'=>$starter===null?'unknown':($starter===$id?'hold':'break')];
             $legs[$id]++; $setLegs[$id]++;
             if ($c['match']['unit']==='fixed') {
                 $finished=array_sum($legs)>=$c['match']['target'];
@@ -273,14 +273,14 @@ function replayFormat(array $game, array $visits): array
         'config'=>$c,'format_version'=>1,'format_description'=>formatDescription($c),'legacy_compatible'=>(bool)$game['legacy_compatible'],
         'aggregate_allowed'=>$c['scoring']['out']!=='master' && ($current===null || $opened[$current]),
         'created_at'=>$game['created_at'],'updated_at'=>$game['updated_at'],'finished_at'=>$game['finished_at']],
-        'players'=>$players,'visits'=>$visits,'can_undo'=>count($visits)>0];
+        'players'=>$players,'visits'=>$visits,'can_undo'=>count($visits)>0,'leg_results'=>$legResults];
 }
 
 function persistCompletion(PDO $pdo, int $id): void
 {
     $s=fetchGameSnapshot($pdo,$id);
     if ($s['game']['status']==='finished') {
-        $pdo->prepare("UPDATE games SET winner_id=?,finished_at=COALESCE(finished_at,strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE id=?")->execute([$s['game']['winner_id'],$id]);
+        $pdo->prepare("UPDATE games SET winner_id=?,finished_at=COALESCE(finished_at,strftime('%Y-%m-%dT%H:%M:%fZ','now')),is_paused=0 WHERE id=?")->execute([$s['game']['winner_id'],$id]);
     }
 }
 

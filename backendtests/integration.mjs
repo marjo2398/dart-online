@@ -82,7 +82,7 @@ try {
   }
   const session = ok(await request('login',{password:secret})); admin.csrf=session.csrf_token;
   assert.equal(sql(`echo json_encode($p->query('SELECT id,game_id,player_id,declared_score,applied_score,darts_used FROM visits')->fetchAll(PDO::FETCH_ASSOC));`),original);
-  assert.equal(sql(`echo $p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn();`),'4');
+  assert.equal(sql(`echo $p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn();`),'5');
   let legacy = await game(1); assert.equal(legacy.players[0].remaining,241); assert.equal(legacy.darts.length,0); assert.equal(legacy.visits[0].mode,'aggregate');
   pass('v2 migration preserves ids, visits and stats without inventing darts');
   const baseDashboard=ok(await request('dashboard')); p1=baseDashboard.players[0];p2=baseDashboard.players[1];
@@ -159,7 +159,7 @@ try {
   rejected(await request('dart-create',failed),500);sql(`$p->exec('DROP TRIGGER fail_commands');`);
   const afterRollback=await game(gId);assert.deepEqual(afterRollback,beforeRollback);ok(await request('dart-create',failed));
   pass('injected command-ledger failure rolls back dart, score, audit and revision atomically');
-  const stats=JSON.parse(sql(`echo json_encode($p->query('SELECT p.id,p.total_points,p.total_darts_thrown,(SELECT COALESCE(SUM(v.applied_score),0) FROM visits v WHERE v.player_id=p.id) AS expected_points,(SELECT COALESCE(SUM(v.darts_used),0) FROM visits v WHERE v.player_id=p.id) AS expected_darts FROM players p')->fetchAll(PDO::FETCH_ASSOC));`));
+  const stats=JSON.parse(sql(`echo json_encode($p->query('SELECT p.id,p.total_points,p.total_darts_thrown,(SELECT COALESCE(SUM(v.applied_score),0) FROM visits v WHERE v.active=1 AND v.player_id=p.id) AS expected_points,(SELECT COALESCE(SUM(v.darts_used),0) FROM visits v WHERE v.active=1 AND v.player_id=p.id) AS expected_darts FROM players p')->fetchAll(PDO::FETCH_ASSOC));`));
   for(const p of stats) {assert.equal(p.total_points,p.expected_points);assert.equal(p.total_darts_thrown,p.expected_darts);}
   pass('global statistics count visit projections once, never audit/darts twice');
   rejected(await request('dart-create',{game_id:gId,player_id:p1.id,field:'S20'}),422,'invalid-uuid');

@@ -1,4 +1,18 @@
-# Etap 1 WWW — formaty X01, 28.10.2026
+# Etap 2 WWW — prowadzenie gry, 29.10.2026
+
+- [x] Suma/pola/„Pozostało”, faktyczna liczba lotek i legalność sekwencji, jawne rozstrzygnięcie niejednoznaczności.
+- [x] Klawiatura ekranowa/laptop, Enter/Backspace/Escape, popularne wyniki, zero, zachowany głos.
+- [x] Opcjonalne zejścia zależne od lotek i zasad, preferencje double, wyłączenie sugestii głosowych.
+- [x] Korekta historii z podglądem/rewizją, stabilnymi ID i jawnym wycofaniem konfliktującego fragmentu; archiwum wersji/inactive.
+- [x] Pauza/wznowienie, blokady kamery i starych klientów, zachowanie częściowej wizyty.
+- [x] Hold/break, osobny idempotentny rewanż i wybór początku/stron.
+- [x] Poddanie/walkower/przerwanie/anulowanie bez fikcyjnych legów, jawny wpływ na statystyki.
+- [x] Zatwierdzenie, blokada, ponowne otwarcie z uzasadnieniem; rozdział praw bez rozszerzenia starych grantów.
+- [x] Testy API, migracje z rollbackiem, TypeScript/build, klient WWW i lokalny przepływ w dwóch kartach.
+- [x] Instrukcja operatora i aktualizacja SPEC/API/ARCHITECTURE/ROADMAP/stanu.
+- [ ] Osobno: ewentualny etap 3 WWW; autoryzacja wdrożenia, przyszły Android i testy sprzętowe. Niczego nie opublikowano.
+
+## Zachowany etap 1 WWW — formaty X01, 28.10.2026
 
 - [x] Szybkie 501 i własna rozgrywka dwóch zapisanych zawodników.
 - [x] Wersjonowane reguły serwera: wejście/wyjście, legi/sety, wszystkie N legów, remis, przewaga i sudden death.

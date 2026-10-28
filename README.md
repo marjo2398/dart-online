@@ -30,6 +30,8 @@ Gałąź integracji dodaje wspólny wynik WWW/APK, pojedyncze lotki i częściow
 
 Backend jest źródłem prawdy. Po zapisie wizyty i cofnięciu frontend przyjmuje cały snapshot meczu zwrócony przez API.
 
+**Etap 2 (29.10.2026), lokalnie:** suma/pola/„pozostało”, klawiatura ekranowa i laptopa, opcjonalne zejścia, korekta wcześniejszej historii z podglądem i kontrolowanym wycofaniem, pauza, hold/break, rewanż, decyzje administracyjne, zatwierdzanie/otwieranie i jawne uprawnienia. Migracja v5 zachowuje historię. [Krótka instrukcja operatora](docs/OPERATOR.md). Starsze APK nie dostaje rozszerzeń; serwer odrzuca niedozwolone zapisy i odczyty faz. **Bez wdrożenia i nowej APK.**
+
 Etap formatów z 28.10.2026 wykonano **lokalnie, bez wdrożenia**. APK1.0.1 obsługuje dawne formaty; serwer filtruje i blokuje nowe dla starego klienta. Master/straight-out to warianty dodatkowe. Przed otwarciem double/master-in i przy master-out wpisuj pojedyncze lotki. [Reguły i granice](docs/SPEC.md), [testy](docs/TESTING.md), [dalszy plan](docs/ROADMAP.md).
 
 ## Wymagania lokalne

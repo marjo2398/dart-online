@@ -1,4 +1,4 @@
-import type { DashboardData, Device, GameSnapshot, Player, SessionState, MatchConfig, MatchTemplate } from './types';
+import type { DashboardData, Device, GameSnapshot, Player, SessionState, MatchConfig, MatchTemplate, HistoryChange, CorrectionPreview, CheckoutHints, MatchPermission } from './types';
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly details?: Record<string, unknown>) {
@@ -44,6 +44,7 @@ async function request<T>(action: string, options: {
   const requestCsrfToken = csrfToken;
   const headers = new Headers({ Accept: 'application/json' });
   headers.set('X-Dart-Formats', '1');
+  headers.set('X-Dart-Operations', '2');
   if (method === 'POST') {
     headers.set('Content-Type', 'application/json');
     if (action !== 'login') {
@@ -119,6 +120,22 @@ export async function retryPending(): Promise<unknown> {
 function remember(session: SessionState): SessionState { csrfToken = session.csrf_token; return session; }
 
 export const api = {
+  remaining(gameId: number, playerId: number, remaining: number, dartsUsed: number, doubleConfirmed: boolean, zeroConfirmed: boolean, revision: number): Promise<GameSnapshot> {
+    return mutate('remaining-create', { game_id: gameId, player_id: playerId, remaining, darts_used: dartsUsed, double_confirmed: doubleConfirmed, zero_visit_confirmed: zeroConfirmed }, revision);
+  },
+  hints(gameId: number, preferred: string): Promise<CheckoutHints> { return request('checkout-hints', { query: { game_id: gameId, preferred_double: preferred } }); },
+  historyPreview(gameId: number, change: HistoryChange, revision: number): Promise<CorrectionPreview> {
+    return request('history-preview', { method: 'POST', body: { game_id: gameId, ...change, expected_revision: revision } });
+  },
+  historyApply(gameId: number, change: HistoryChange, previewToken: string, revision: number): Promise<GameSnapshot> {
+    return mutate('history-apply', { game_id: gameId, ...change, preview_token: previewToken }, revision);
+  },
+  matchOperation(action: 'game-pause' | 'game-resume' | 'game-adjudicate' | 'result-confirm' | 'result-reopen', gameId: number, revision: number, body: Record<string, unknown> = {}): Promise<GameSnapshot> {
+    return mutate(action, { game_id: gameId, ...body }, revision);
+  },
+  rematch(gameId: number, revision: number, swapSides: boolean, method: MatchConfig['starters']['method'], player: number): Promise<GameSnapshot> {
+    return mutate('game-rematch', { game_id: gameId, swap_sides: swapSides, starter_method: method, starter_player: player }, revision);
+  },
   previewFormat(config: MatchConfig): Promise<{ description: string; legacy_compatible: boolean }> {
     return request('format-preview', { method: 'POST', body: { config } });
   },
@@ -165,8 +182,8 @@ export const api = {
     return mutate('observation-review', { game_id: gameId, observation_id: observationId, decision, ...(decision === 'accept' ? { field } : {}) }, revision);
   },
   devices(): Promise<{ devices: Device[] }> { return request('devices'); },
-  pairCode(role: Device['role'], gameId: number | null, hours: number): Promise<{ code: string; expires_at: number; role: string; game_id: number | null }> {
-    return mutate('device-code-create', { role, game_id: gameId, expires_hours: hours });
+  pairCode(role: Device['role'], gameId: number | null, hours: number, permissions?: MatchPermission[]): Promise<{ code: string; expires_at: number; role: string; game_id: number | null }> {
+    return mutate('device-code-create', { role, game_id: gameId, expires_hours: hours, ...(permissions ? { permissions } : {}) });
   },
   revoke(deviceId: string): Promise<unknown> { return mutate('device-revoke', { device_id: deviceId }); },
 };

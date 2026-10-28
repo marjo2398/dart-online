@@ -36,6 +36,8 @@ export interface MatchPlayerState {
 }
 
 export interface Visit {
+  double_confirmed: boolean;
+  input_mode: 'score' | 'remaining';
   id: number;
   game_id: number;
   leg_no: number;
@@ -52,6 +54,11 @@ export interface Visit {
 }
 
 export interface GameState {
+  operation_state: 'playing' | 'paused' | 'awaiting_starter' | 'resolved' | 'confirmed';
+  is_paused: boolean;
+  confirmed_at: string | null;
+  decision: AdministrativeDecision | null;
+  stats_eligible: boolean;
   id: number;
   player1_id: number;
   player2_id: number;
@@ -66,7 +73,7 @@ export interface GameState {
   set_starter_id: number;
   current_set: number;
   leg_in_set: number;
-  result: 'win' | 'draw' | null;
+  result: 'win' | 'draw' | AdministrativeDecision['kind'] | null;
   phase: 'regular' | 'decider' | 'advantage' | 'sudden_death' | 'awaiting_starter' | 'finished';
   aggregate_allowed: boolean;
   config: MatchConfig;
@@ -82,6 +89,12 @@ export interface GameState {
 }
 
 export interface GameSnapshot {
+  permissions: MatchPermission[];
+  leg_results: { leg_no: number; set_no: number; winner_id: number; starter_id: number | null; kind: 'hold' | 'break' | 'unknown' }[];
+  withdrawn_visits: Visit[];
+  withdrawn_darts: Dart[];
+  record_versions: { id: number; record_type: string; record_id: string; original: string; reason: string; revision: number; created_at: string }[];
+  result_decisions: { id: number; action: string; reason: string; actor_context: string; created_at: string }[];
   game: GameState;
   players: [MatchPlayerState, MatchPlayerState];
   visits: Visit[];
@@ -103,6 +116,7 @@ export interface GameContext {
 }
 
 export interface Device {
+  permissions: MatchPermission[];
   id: string;
   name: string;
   role: 'operator' | 'viewer' | 'camera';
@@ -139,6 +153,7 @@ export interface Observation extends GameContext {
 }
 
 export interface AuditEntry {
+  actor_context?: string;
   id: number;
   command_id: string;
   action: string;
@@ -147,9 +162,11 @@ export interface AuditEntry {
 }
 
 export interface GameSummary {
+  operation_state: GameState['operation_state'];
+  decision: AdministrativeDecision | null;
   config: MatchConfig;
   format_description: string;
-  result: 'win' | 'draw' | null;
+  result: GameState['result'];
   id: number;
   player1: MatchPlayerState;
   player2: MatchPlayerState;
@@ -184,3 +201,23 @@ export interface MatchConfig {
   starters: { method: 'fixed' | 'random' | 'bull_off'; player: 1 | 2; leg_rotation: 'alternate' | 'same'; set_rotation: 'alternate' | 'same'; decider: 'rotation' | 'initial' | 'bull_off' };
 }
 export interface MatchTemplate { id: number; name: string; config: MatchConfig; favorite: boolean; revision: number }
+
+export type MatchPermission = 'score' | 'correct_last' | 'history' | 'pause' | 'adjudicate' | 'confirm' | 'reopen';
+export interface AdministrativeDecision {
+  kind: 'surrender' | 'walkover' | 'interrupted' | 'cancelled';
+  winner_id: number | null;
+  award: { player1: number; player2: number; unit: 'legs' | 'sets' } | null;
+  reason: string;
+}
+export interface HistoryChange {
+  kind: 'visit' | 'dart'; visit_id?: number; dart_id?: string; field?: string;
+  score?: number; darts_used?: number; double_confirmed?: boolean;
+  reason: string; withdraw_dependent: boolean;
+}
+export interface CorrectionPreview {
+  preview_token: string; can_apply: boolean; original: Visit | Dart;
+  proposed: Pick<GameSnapshot, 'players' | 'visits' | 'leg_results'> & { game: Pick<GameState, 'current_leg' | 'current_set' | 'operation_state' | 'winner_id' | 'status'> };
+  conflicts: { visit_id: number; dart_id: string | null; message: string }[];
+  withdrawn_visits: number; withdrawn_darts: number;
+}
+export interface CheckoutHints { revision: number; remaining: number | null; darts_left: number; routes: string[][]; message: string }

@@ -1479,3 +1479,12 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .format-summary { padding: 1rem; margin: 1rem 0; border: 1px solid var(--line-strong); border-radius: .75rem; overflow-wrap: anywhere; }
 .format-summary p, .rule-fields p { margin: .5rem 0; }
 .new-game-panel select, .new-game-panel input { min-width: 0; max-width: 100%; }
+.score-entry { width: min(100%, 680px); margin: auto; text-align: left; }
+.score-entry label, .match-management label, .history-correction label, .checkout-panel label { display: block; margin: .75rem 0; }
+.score-entry select, .match-management input:not([type=checkbox]), .match-management select, .history-correction input:not([type=checkbox]), .history-correction select, .checkout-panel select { display: block; width: 100%; margin: .4rem 0; }
+.numeric-pad { display: grid; grid-template-columns: repeat(3,1fr); gap: .5rem; margin: .8rem 0; }
+.numeric-pad button { min-height: 48px; font-size: 1.3rem; }
+.popular-scores { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.match-management pre, .history-correction pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; }
+.history-correction small, .match-management small { overflow-wrap: anywhere; }
+.match-management fieldset, .history-correction fieldset { min-width: 0; }

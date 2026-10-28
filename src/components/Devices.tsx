@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, messageFrom } from '../api';
-import type { Device } from '../types';
+import type { Device, MatchPermission } from '../types';
 import { useWriteState } from './WriteStatus';
 
 export default function Devices({ gameId = null }: { gameId?: number | null }) {
@@ -8,6 +8,8 @@ export default function Devices({ gameId = null }: { gameId?: number | null }) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [role, setRole] = useState<Device['role']>('operator');
   const [hours, setHours] = useState(24);
+  const [permissions, setPermissions] = useState<MatchPermission[]>(['score','correct_last']);
+  const permissionLabels: Record<MatchPermission,string> = { score:'Zapis wyniku i zatwierdzanie propozycji',correct_last:'Cofanie i korekta ostatniego zapisu',history:'Korekta wcześniejszej historii',pause:'Pauza i wznowienie',adjudicate:'Rozstrzygnięcia administracyjne',confirm:'Zatwierdzenie wyniku',reopen:'Ponowne otwarcie wyniku' };
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,16 +40,17 @@ export default function Devices({ gameId = null }: { gameId?: number | null }) {
           {[1, 12, 24, 72, 168].map(h => <option key={h} value={h}>{h} godz.</option>)}
         </select></label>
       </div>
+      {role === 'operator' && <details><summary>Jawne uprawnienia nowego dostępu</summary><p>Nie zmienia uprawnień wcześniej sparowanych urządzeń. Rozszerzenia przydzielasz wyłącznie dla nowego kodu.</p>{Object.entries(permissionLabels).map(([key,label]) => <label key={key}><input type="checkbox" disabled={disabled} checked={permissions.includes(key as MatchPermission)} onChange={e => setPermissions(current => e.target.checked ? [...current,key as MatchPermission] : current.filter(p => p !== key))} /> {label}</label>)}</details>}
       <p className="muted">{gameId ? `Dostęp przypisany do meczu #${gameId}.` : 'Operator może korzystać ze wspólnej listy graczy i tworzyć mecze.'} Tryb ekranu kamery nie nadaje uprawnień operatora.</p>
       <button className="button button-primary" type="button" disabled={disabled} onClick={() => run(async () => {
-        const result = await api.pairCode(role, gameId, hours); setCode(result.code);
+        const result = await api.pairCode(role, gameId, hours, role === 'operator' ? permissions : []); setCode(result.code);
       })}>Utwórz kod dołączenia</button>
       {code && <p className="pair-code">Kod: <strong>{code}</strong></p>}
       {error && <p role="alert">{error}</p>}
       <h3>Urządzenia</h3>
       {devices.length === 0 && <p className="muted">Brak sparowanych urządzeń.</p>}
       {devices.map(device => <div className="device-row" key={device.id}>
-        <span><strong>{device.name}</strong> · {device.role} · {device.revoked ? 'cofnięty dostęp' : `do ${new Date(device.expires_at * 1000).toLocaleString('pl-PL')}`}</span>
+        <span><strong>{device.name}</strong> · {device.role} · {device.permissions.map(p => permissionLabels[p]).join(', ')} · {device.revoked ? 'cofnięty dostęp' : `do ${new Date(device.expires_at * 1000).toLocaleString('pl-PL')}`}</span>
         {!device.revoked && <button className="button button-danger-ghost" type="button" disabled={disabled} onClick={() => {
           if (window.confirm(`Cofnąć dostęp urządzenia „${device.name}”?`)) run(async () => { await api.revoke(device.id); await refresh(); });
         }}>Cofnij dostęp</button>}

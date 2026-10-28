@@ -10,6 +10,7 @@ const ALLOWED_LEGS_TO_WIN = [1, 2, 3, 5];
 
 require_once __DIR__ . '/sync.php';
 require_once __DIR__ . '/formats.php';
+require_once __DIR__ . '/operations.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
@@ -245,6 +246,7 @@ function migrateDatabase(PDO $pdo): void
 {
     if (tableExists($pdo, 'schema_meta') && (int) $pdo->query("SELECT value FROM schema_meta WHERE key = 'schema_version'")->fetchColumn() >= 3) {
         migrateFormats($pdo);
+        migrateOperations($pdo);
         return;
     }
     transaction($pdo, static function () use ($pdo): void {
@@ -355,6 +357,7 @@ function migrateDatabase(PDO $pdo): void
     migrateSync($pdo);
     });
     migrateFormats($pdo);
+    migrateOperations($pdo);
 }
 
 function migrateLegacyThrows(PDO $pdo): void
@@ -442,46 +445,46 @@ function rebuildAllPlayerStats(PDO $pdo): void
         UPDATE players
         SET
             total_points = COALESCE((
-                SELECT SUM(v.applied_score) FROM visits v WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id
+                SELECT SUM(v.applied_score) FROM visits v WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1 AND stats_eligible=1) AND v.active=1 AND v.player_id = players.id
             ), 0),
             total_darts_thrown = COALESCE((
-                SELECT SUM(v.darts_used) FROM visits v WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id
+                SELECT SUM(v.darts_used) FROM visits v WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1 AND stats_eligible=1) AND v.active=1 AND v.player_id = players.id
             ), 0),
             count_100 = COALESCE((
                 SELECT COUNT(*) FROM visits v
-                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id AND v.applied_score BETWEEN 100 AND 139
+                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1 AND stats_eligible=1) AND v.active=1 AND v.player_id = players.id AND v.applied_score BETWEEN 100 AND 139
             ), 0),
             count_140 = COALESCE((
                 SELECT COUNT(*) FROM visits v
-                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id AND v.applied_score BETWEEN 140 AND 179
+                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1 AND stats_eligible=1) AND v.active=1 AND v.player_id = players.id AND v.applied_score BETWEEN 140 AND 179
             ), 0),
             count_180 = COALESCE((
                 SELECT COUNT(*) FROM visits v
-                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id AND v.applied_score = 180
+                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1 AND stats_eligible=1) AND v.active=1 AND v.player_id = players.id AND v.applied_score = 180
             ), 0),
             hi_score = COALESCE((
-                SELECT MAX(v.applied_score) FROM visits v WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id
+                SELECT MAX(v.applied_score) FROM visits v WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1 AND stats_eligible=1) AND v.active=1 AND v.player_id = players.id
             ), 0),
             highest_checkout = COALESCE((
                 SELECT MAX(v.applied_score) FROM visits v
-                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1) AND v.player_id = players.id AND v.is_checkout = 1
+                WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1 AND stats_eligible=1) AND v.active=1 AND v.player_id = players.id AND v.is_checkout = 1
             ), 0),
             best_leg_darts = COALESCE((
                 SELECT MIN(winning_leg.leg_darts)
                 FROM (
                     SELECT v.player_id, v.game_id, v.leg_no, SUM(v.darts_used) AS leg_darts, MAX(v.is_checkout) AS won_leg
                     FROM visits v
-                    WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1)
+                    WHERE v.game_id IN (SELECT id FROM games WHERE legacy_compatible=1 AND stats_eligible=1) AND v.active=1
                     GROUP BY v.player_id, v.game_id, v.leg_no
                 ) AS winning_leg
                 WHERE winning_leg.player_id = players.id AND winning_leg.won_leg = 1
             ), 0),
             games_played = COALESCE((
                 SELECT COUNT(*) FROM games g
-                WHERE g.legacy_compatible=1 AND g.winner_id IS NOT NULL AND (g.player1_id = players.id OR g.player2_id = players.id)
+                WHERE g.legacy_compatible=1 AND g.stats_eligible=1 AND (g.decision_json IS NULL OR EXISTS(SELECT 1 FROM visits WHERE game_id=g.id AND active=1)) AND g.winner_id IS NOT NULL AND (g.player1_id = players.id OR g.player2_id = players.id)
             ), 0),
             games_won = COALESCE((
-                SELECT COUNT(*) FROM games g WHERE g.legacy_compatible=1 AND g.winner_id = players.id
+                SELECT COUNT(*) FROM games g WHERE g.legacy_compatible=1 AND g.stats_eligible=1 AND (g.decision_json IS NULL OR EXISTS(SELECT 1 FROM visits WHERE game_id=g.id AND active=1)) AND g.winner_id = players.id
             ), 0)
         SQL);
 }
@@ -652,6 +655,8 @@ function normalizeVisit(array $row): array
         'mode' => (string) ($row['mode'] ?? 'aggregate'),
         'is_complete' => (bool) ($row['is_complete'] ?? true),
         'opened_after' => (bool) ($row['opened_after'] ?? true),
+        'double_confirmed' => (bool) ($row['double_confirmed'] ?? $row['is_checkout']),
+        'input_mode' => $row['input_mode'] ?? 'score',
     ];
 }
 
@@ -674,14 +679,14 @@ function fetchGameRow(PDO $pdo, int $gameId): array
 
 function fetchGameVisits(PDO $pdo, int $gameId): array
 {
-    $statement = $pdo->prepare('SELECT * FROM visits WHERE game_id = :game_id ORDER BY visit_no, id');
+    $statement = $pdo->prepare('SELECT * FROM visits WHERE game_id = :game_id AND active=1 ORDER BY visit_no, id');
     $statement->execute(['game_id' => $gameId]);
     return array_map('normalizeVisit', $statement->fetchAll());
 }
 
 function replayGame(array $game, array $visits): array
 {
-    return replayFormat($game,$visits);
+    return operationSnapshot($game,replayFormat($game,$visits));
 }
 
 function fetchGameSnapshot(PDO $pdo, int $gameId): array
@@ -710,6 +715,8 @@ function snapshotSummary(array $snapshot): array
         'format_description' => $snapshot['game']['format_description'],
         'legacy_compatible' => $snapshot['game']['legacy_compatible'],
         'result' => $snapshot['game']['result'],
+        'operation_state' => $snapshot['game']['operation_state'],
+        'decision' => $snapshot['game']['decision'],
     ];
 }
 
@@ -717,6 +724,7 @@ function fetchGameRows(PDO $pdo, bool $finished): array
 {
     $where = $finished ? '(g.finished_at IS NOT NULL OR g.winner_id IS NOT NULL)' : '(g.finished_at IS NULL AND g.winner_id IS NULL)';
     if (!supportsFormats()) { $where .= ' AND g.legacy_compatible=1'; }
+    if (!supportsOperations()) { $where .= ' AND g.is_paused=0 AND g.confirmed_at IS NULL AND g.decision_json IS NULL'; }
     $limit = $finished ? ' LIMIT 50' : '';
     return $pdo->query(<<<SQL
         SELECT g.*, p1.name AS player1_name, p2.name AS player2_name
@@ -734,7 +742,7 @@ function fetchVisitsGrouped(PDO $pdo, array $gameIds): array
         return [];
     }
     $placeholders = implode(',', array_fill(0, count($gameIds), '?'));
-    $statement = $pdo->prepare('SELECT * FROM visits WHERE game_id IN (' . $placeholders . ') ORDER BY game_id, visit_no, id');
+    $statement = $pdo->prepare('SELECT * FROM visits WHERE active=1 AND game_id IN (' . $placeholders . ') ORDER BY game_id, visit_no, id');
     $statement->execute($gameIds);
     $grouped = [];
     foreach ($statement->fetchAll() as $row) {
@@ -762,7 +770,7 @@ function getDashboard(PDO $pdo): array
         'active_games' => array_map(static fn (array $row): array => $summaries[(int) $row['id']], $activeRows),
         'history' => array_map(static fn (array $row): array => $summaries[(int) $row['id']], $historyRows),
         'templates' => supportsFormats() ? listTemplates($pdo) : [],
-        'statistics_scope' => 'Wyłącznie dotychczasowe formaty: 301/501/701/901, straight-in/double-out, do 1/2/3/5 legów, naprzemienny start od zawodnika 1. Inne formaty mają statystyki w meczu.',
+        'statistics_scope' => 'Wyłącznie dotychczasowe formaty: 301/501/701/901, straight-in/double-out, do 1/2/3/5 legów, naprzemienny start od zawodnika 1. Inne formaty mają statystyki w meczu. Punkty i średnie obejmują także grę w toku; bilans obejmuje rozstrzygnięcia, również przed zatwierdzeniem. Walkower, przerwanie i anulowanie są wyłączone.',
     ];
 }
 
@@ -805,6 +813,7 @@ function createPlayer(PDO $pdo, array $input): array
 function deletePlayer(PDO $pdo, int $playerId): array
 {
     return transaction($pdo, static function () use ($pdo, $playerId): array {
+        if (sqlOne($pdo,'SELECT id FROM games WHERE confirmed_at IS NOT NULL AND (player1_id=? OR player2_id=?) LIMIT 1',[$playerId,$playerId])) { problem(409,'result-locked','Zawodnik ma zatwierdzony mecz. Najpierw uprawnione ponowne otwarcie z uzasadnieniem.'); }
         $statement = $pdo->prepare('SELECT name FROM players WHERE id = :id');
         $statement->execute(['id' => $playerId]);
         $name = $statement->fetchColumn();
@@ -910,6 +919,7 @@ function recordVisit(PDO $pdo, array $input): array
     $doubleConfirmed = requiredBool($input, 'double_confirmed');
 
     return transaction($pdo, static function () use ($pdo, $gameId, $playerId, $score, $dartsUsed, $doubleConfirmed): array {
+        assertMatchOperation(fetchGameRow($pdo,$gameId),'visit-create');
         $snapshot = fetchGameSnapshot($pdo, $gameId);
         if ($snapshot['partial_visit'] !== null) {
             problem(409, 'partial-visit-exists', 'Dokończ pojedyncze lotki albo cofnij je przed wpisaniem całej sumy.');
@@ -932,33 +942,11 @@ function recordVisit(PDO $pdo, array $input): array
             problem(422, 'player-not-in-game', 'Zawodnik nie bierze udziału w tym meczu.');
         }
 
-        if (!$snapshot['game']['aggregate_allowed']) {
-            problem(422,'individual-darts-required','Przed otwarciem double/master-in oraz przy master-out wpisuj pojedyncze lotki.');
-        }
-        $remainingAfter = $playerState['remaining'] - $score;
-        $straightOut = $snapshot['game']['config']['scoring']['out'] === 'straight';
-        $isCheckout = $remainingAfter === 0 && ($straightOut || $doubleConfirmed);
-        $isBust = $remainingAfter < 0 || (!$straightOut && ($remainingAfter === 1 || ($remainingAfter === 0 && !$doubleConfirmed)));
-
-        if (!isPossibleVisitScore($score, $dartsUsed)) {
-            problem(422, 'impossible-visit-score', 'Tego wyniku nie da się uzyskać podaną liczbą legalnych lotek.');
-        }
-        if ($doubleConfirmed && $remainingAfter !== 0) {
-            problem(422, 'double-not-applicable', 'Potwierdzenie podwójnego pola jest dozwolone tylko przy zejściu do zera.');
-        }
-        if ($isCheckout && !$straightOut) {
-            if (!isPossibleCheckout($score, $dartsUsed)) {
-                problem(422, 'impossible-checkout', 'Tego wyniku nie da się zakończyć na podwójnym polu podaną liczbą lotek.');
-            }
-        } elseif (!$isCheckout && !$isBust && $dartsUsed !== 3) {
-            problem(422, 'invalid-darts-used', 'Dla wizyty bez checkoutu zapisywane są trzy lotki.');
-        }
-
-        $appliedScore = $isBust ? 0 : $score;
+        [$declaredScore,$appliedScore,$dartsUsed,$isBust,$isCheckout] = evaluateAggregate($snapshot['game']['config'],$playerState['remaining'],$playerState['opened'],$score,$dartsUsed,$doubleConfirmed);
         $visitNumber = $snapshot['game']['context']['visit_no'];
         $insert = $pdo->prepare(<<<'SQL'
-            INSERT INTO visits(game_id, leg_no, visit_no, player_id, declared_score, applied_score, darts_used, is_bust, is_checkout)
-            VALUES (:game_id, :leg_no, :visit_no, :player_id, :declared_score, :applied_score, :darts_used, :is_bust, :is_checkout)
+            INSERT INTO visits(game_id, leg_no, visit_no, player_id, declared_score, applied_score, darts_used, is_bust, is_checkout, double_confirmed)
+            VALUES (:game_id, :leg_no, :visit_no, :player_id, :declared_score, :applied_score, :darts_used, :is_bust, :is_checkout, :double_confirmed)
             SQL);
         $insert->execute([
             'game_id' => $gameId,
@@ -970,6 +958,7 @@ function recordVisit(PDO $pdo, array $input): array
             'darts_used' => $dartsUsed,
             'is_bust' => $isBust ? 1 : 0,
             'is_checkout' => $isCheckout ? 1 : 0,
+            'double_confirmed' => (int)$doubleConfirmed,
         ]);
 
         $pdo->prepare("UPDATE games SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = :id")
@@ -1030,6 +1019,7 @@ try {
         sendData(joinDevice($database, readJsonBody()));
     }
     $actor = authenticateActor($database);
+    $GLOBALS['snapshotActor']=$actor;
     if ($action === 'logout') {
         requireMethod('POST');
         requireCsrf();
@@ -1045,6 +1035,7 @@ try {
         $assigned = $actor['device']['game_id'] ?? null;
         if ($assigned !== null) {
             assertFormatClient(fetchGameRow($database,$assigned));
+            assertOperationsRead(fetchGameRow($database,$assigned));
             $snapshot = fetchGameSnapshot($database, $assigned);
             $ids = [$snapshot['game']['player1_id'], $snapshot['game']['player2_id']];
             $data['players'] = array_values(array_filter($data['players'], static fn(array $p): bool => in_array($p['id'], $ids, true)));
@@ -1062,12 +1053,19 @@ try {
         }
         assertScope($actor, $gameId);
         assertFormatClient(fetchGameRow($database,$gameId));
+        assertOperationsRead(fetchGameRow($database,$gameId));
         sendData(fetchGameSnapshot($database, $gameId));
     }
     if ($action === 'devices') {
         requireMethod('GET');
         if ($actor['role'] !== 'admin') { problem(403,'admin-required','Wymagany administrator.'); }
         sendData(['devices' => array_map('publicDevice', sqlRows($database,'SELECT * FROM devices ORDER BY name,id'))]);
+    }
+    if ($action==='checkout-hints') {
+        requireMethod('GET');
+        $gameId=requiredInt($_GET,'game_id',1,PHP_INT_MAX); assertScope($actor,$gameId);
+        assertFormatClient(fetchGameRow($database,$gameId)); assertOperationsRead(fetchGameRow($database,$gameId));
+        sendData(checkoutHints(fetchGameSnapshot($database,$gameId),$_GET));
     }
     if ($action === 'device-self') {
         requireMethod('GET');
@@ -1096,6 +1094,12 @@ try {
     requireMethod('POST');
     if (!$hasBearer) { requireCsrf(); }
     $body = readJsonBody();
+    if ($action==='history-preview') {
+        if (!supportsOperations()) { problem(409,'client-update-required','Podgląd korekty wymaga obsługi operacji v2.'); }
+        authorizeCommand($database,$actor,$action,$body);
+        $database->beginTransaction();
+        sendData(publicCorrectionPlan(correctionPlan($database,$body)));
+    }
     if ($action === 'format-preview') {
         if (!supportsFormats()) { problem(409,'client-update-required','Wymagana obsługa formatów v1.'); }
         $c=validateFormat(formatObject($body,'config'));
