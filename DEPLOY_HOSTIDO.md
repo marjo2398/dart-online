@@ -1,6 +1,6 @@
 # Wdrożenie na Hostido
 
-Docelowy panel to `https://host749284.xce.pl/dart/`, PHP/SQLite. Wdrożenie obejmuje wyłącznie potwierdzony katalog `public_html/dart` i prywatne kopie tego projektu poza `public_html`. Nie zmieniaj innych stron ani globalnej wersji PHP domeny. Aplikacja nie wymaga procesu Node.js na serwerze ani `mod_rewrite`. Ta instrukcja nie jest potwierdzeniem wdrożenia; aktualny wynik zapisujemy w `PROJECT_STATE.md`.
+Docelowy panel to `https://dartlens.host749284.xce.pl/`, PHP/SQLite. Wdrożenie obejmuje wyłącznie potwierdzony katalog `public_html/dart-lens-app/public` i prywatne kopie tego projektu poza `public_html`. Nie zmieniaj innych stron ani globalnej wersji PHP domeny. Aplikacja nie wymaga procesu Node.js na serwerze ani `mod_rewrite`. Ta instrukcja nie jest potwierdzeniem wdrożenia; aktualny wynik zapisujemy w `PROJECT_STATE.md`.
 
 ## 1. Środowisko PHP
 
@@ -18,16 +18,16 @@ Do wdrożenia służy zawartość `dist/`. Backend z `public/api/` jest kopiowan
 
 ## 3. Wgranie plików
 
-1. W katalogu WWW domeny utwórz `dart`.
+1. Potwierdź DocumentRoot subdomeny: `/home/host749284/domains/dartlens.host749284.xce.pl/public_html/dart-lens-app/public`. Nie twórz drugiej instalacji w dawnym `/dart/`.
 2. Wgraj **zawartość** `dist/` bez dodatkowego poziomu katalogu. Powinny istnieć:
 
    ```text
-   public_html/dart/index.html
-   public_html/dart/api/index.php
-   public_html/dart/api/data/.htaccess
+   public_html/dart-lens-app/public/index.html
+   public_html/dart-lens-app/public/api/index.php
+   public_html/dart-lens-app/public/api/data/.htaccess
    ```
 
-3. Zachowaj pliki `.htaccess`; klient FTP może domyślnie ukrywać pliki zaczynające się kropką.
+3. Zachowaj pliki `.htaccess`; klient FTP może domyślnie ukrywać pliki zaczynające się kropką. Produkcyjny główny `.htaccess` zawiera własne `open_basedir` ograniczone do `dart-lens-app`, `DirectoryIndex index.html` i `CacheLookup off`. Nie zastępuj go ogólnym plikiem z `dist/`. Nie zmieniaj globalnej izolacji PHP.
 
 ## 4. Konfiguracja tylko na serwerze
 
@@ -40,7 +40,7 @@ php -r 'echo password_hash(getenv("DART_SETUP_PASSWORD"), PASSWORD_DEFAULT), PHP
 unset DART_SETUP_PASSWORD
 ```
 
-W `public_html/dart/api/` utwórz ręcznie `config.local.php`:
+Poniższa konfiguracja dotyczy nowej, pustej instalacji. Przy aktualizacji zachowaj istniejący PIN i plik bez zmian. W `public_html/dart-lens-app/public/api/` plik `config.local.php` ma postać:
 
 ```php
 <?php
@@ -59,7 +59,7 @@ Nie wpisuj jawnego PIN-u/hasła. Plik ma pozostać wyłącznie na serwerze i nie
 
 ## 5. Uprawnienia bazy
 
-`public_html/dart/api/data/` musi być zapisywalny dla PHP. Zacznij od `770`; na hostingu współdzielonym może być potrzebne `775`. Nie ustawiaj `777`, jeśli konfiguracja konta tego nie wymaga.
+`public_html/dart-lens-app/public/api/data/` musi być zapisywalny dla PHP. Zacznij od `770`; na hostingu współdzielonym może być potrzebne `775`. Nie ustawiaj `777`, jeśli konfiguracja konta tego nie wymaga.
 
 Przy pierwszym żądaniu API utworzy bazę, pliki WAL i schemat. Bez zapisywalnego katalogu aplikacja pokaże kontrolowany błąd. `.htaccess` blokuje pobieranie konfiguracji i katalogu danych przez HTTP.
 
@@ -68,19 +68,19 @@ Przy pierwszym żądaniu API utworzy bazę, pliki WAL i schemat. Bez zapisywalne
 Otwórz adres z końcowym ukośnikiem:
 
 ```text
-https://twoja-domena.pl/dart/
+https://dartlens.host749284.xce.pl/
 ```
 
 Zaloguj się, dodaj dwóch zawodników i rozpocznij mecz. Mikrofon wymaga HTTPS, zgody przeglądarki i wsparcia Web Speech API; wyniki zawsze można wpisywać ręcznie.
 
 ## Aktualizacja istniejącego panelu i kopia przed migracją
 
-1. Potwierdź rzeczywisty katalog domeny i `dart/api` w DirectAdmin/SSH; nie wyprowadzaj ścieżki wyłącznie z adresu URL. Umów przerwę w grze na wdrożenie. Zachowaj poza katalogiem publicznym także poprzednie pliki aplikacji do ewentualnego wycofania kodu.
+1. Potwierdź rzeczywisty katalog domeny i `api` w DirectAdmin/SSH; nie wyprowadzaj ścieżki wyłącznie z adresu URL. Umów przerwę w grze na wdrożenie. Zachowaj poza katalogiem publicznym także poprzednie pliki aplikacji do ewentualnego wycofania kodu.
 2. Skopiuj `tools/backup.php` do prywatnego katalogu konta. Uruchom **CLI**, nie przez HTTP, przed wgraniem nowego backendu i pierwszym żądaniem uruchamiającym migrację. Katalog nadrzędny kopii musi już istnieć; katalog docelowy musi być nowy. Przykład wymaga podstawienia wcześniej potwierdzonych ścieżek:
 
    ```bash
    php /potwierdzona/sciezka/prywatna/backup.php \
-     --api-dir=/potwierdzona/sciezka/public_html/dart/api \
+     --api-dir=/potwierdzona/sciezka/public_html/dart-lens-app/public/api \
      --public-root=/potwierdzona/sciezka/public_html \
      --destination=/potwierdzona/sciezka/prywatna/kopie/dart-YYYYMMDD-HHMMSS
    ```

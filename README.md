@@ -6,7 +6,7 @@ Dart Online to samodzielny system sędziowski dla dwóch zawodników. Frontend j
 
 Gałąź integracji dodaje wspólny wynik WWW/APK, pojedyncze lotki i częściowe wizyty, parowanie urządzeń z ograniczonym dostępem oraz propozycje jednej aktywnej kamery. Wynik zmienia wyłącznie zatwierdzona komenda operatora; obraz pozostaje na telefonie. Offline klient pokazuje nieaktualny stan i blokuje nowe zapisy. Nieznany wynik operacji odzyskuje się ponowieniem tej samej komendy, bez ponownego naliczania.
 
-[Kontrakt API i uprawnienia](docs/API.md), [wdrożenie z kopią SQLite](DEPLOY_HOSTIDO.md), [aktualny stan weryfikacji](PROJECT_STATE.md). [Instrukcja pierwszej gry i parowania APK](../dart-lens/docs/ONLINE_QUICK_START.md) znajduje się w sąsiednim repozytorium `dart-lens` (link dla wspólnego lokalnego checkoutu). Docelowy adres to **https://host749284.xce.pl/dart/**. Integracja wdrożona. Zalogowana próba produkcyjna26.10 potwierdziła rzut, korektę i cofnięcie oraz zgodność dwóch kart. Próby telefonów i parowania/obserwacji kamery na produkcji pozostają do wykonania.
+[Kontrakt API i uprawnienia](docs/API.md), [wdrożenie z kopią SQLite](DEPLOY_HOSTIDO.md), [aktualny stan weryfikacji](PROJECT_STATE.md). [Instrukcja pierwszej gry i parowania APK](../dart-lens/docs/ONLINE_QUICK_START.md) znajduje się w sąsiednim repozytorium `dart-lens` (link dla wspólnego lokalnego checkoutu). Docelowy adres to **https://dartlens.host749284.xce.pl/**. Integracja wdrożona. Zalogowana próba produkcyjna26.10 potwierdziła rzut, korektę i cofnięcie oraz zgodność dwóch kart. Próby telefonów i parowania/obserwacji kamery na produkcji pozostają do wykonania.
 
 ## Funkcje
 
