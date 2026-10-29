@@ -29,6 +29,8 @@ APK1.2.1/code14: 75260558 bajtów, SHA256 54a0bd91505ab6c5f09f1a8e339a250cdb79ae
 
 WWW: dart-online/.tools/artifacts/www-1.2.1-public-20261029-<commit>/public i ZIP obok; release-manifest.json podaje rzeczywisty commit paczki, pełną listę zmienionych plików i SHA256. Paczka zawiera cały backend/schema8 i frontend, bez konfiguracji, bazy oraz sekretów. Dokładny ZIP i suma są również w wydaniu GitHub.
 
+Potwierdzenie publikacji przez API GitHub: main i obie bieżące gałęzie w każdym repo zawierają wydanie. Tagi v1.2.1-internal wskazują Android e0ddee3e1cac546c2cab341a42fa16106bbcaab6 oraz WWW bc5a0408e3148043e5f792523b3a1e2b986afac2. Wszystkie6 załączników (APK/ZIP, manifesty, sumy) pobrano ponownie i sprawdzono po SHA256. SHA ZIP WWW: 8a0a91c20b1a1f941a91db1f856792b2faffde34442bb23e5c34389c23e637f9. Repozytoria nie mają uruchomionych check-runs/statusów CI dla tych commitów; opisane wyżej wyniki są testami lokalnymi. Późniejszy commit tego potwierdzenia nie zmienia kodu wykonawczego ani opublikowanych pakietów.
+
 ## Dostarczenie i granice
 
 Publikacja GitHub obejmuje main i zachowane gałęzie robocze obu repozytoriów oraz wersjonowane artefakty. Późniejsze commity dokumentacji nie zmieniają wskazanego kodu APK. Wydania do prób: [APK1.2.1 — prywatne repo](https://github.com/marjo2398/dart-party-/releases/tag/v1.2.1-internal), [WWW1.2.1 — paczka](https://github.com/marjo2398/dart-online/releases/tag/v1.2.1-internal). Manifesty podają źródła i sumy kontrolne; pliki klucza, config i bazy nie należą do dystrybucji.

@@ -2,7 +2,7 @@
 
 WWW1.2.1/schema8 i APK1.2.1/code14 obejmują ten sam ukończony zakres wspólnych funkcji1–3; etap4 anulowany. WWW jest publiczne bez logowania; APK zachowuje offline i własne uwierzytelnianie online. Naprawiono lokalny bilans decyzji administracyjnych i rozróżnienie brakujących rekordów od zera. Pełna macierz,33 testy JVM,8 zestawów zgodności oraz granice w [dokumencie wydania](docs/RELEASE_1_2_1.md).
 
-Zlecono push/merge oraz publikację kodu i artefaktów GitHub obu repo. Bez deploy hostingu, zmian produkcji i instalacji telefonu; hardware_verified=false. Poniżej zachowana historia wcześniejszych zleceń.
+Wykonano push/merge przez fast-forward oraz publikację kodu i artefaktów GitHub obu repo. API GitHuba potwierdziło main i aktywne gałęzie; wszystkie artefakty pobrano i sprawdzono po SHA256. Bez deploy hostingu, zmian produkcji i instalacji telefonu; hardware_verified=false. Poniżej zachowana historia wcześniejszych zleceń.
 
 ---
 
