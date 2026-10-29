@@ -1,3 +1,14 @@
+# Wdrożenie hostingu30.10.2026
+
+- [x] WWW/API1.2.1 publiczne na aktywnej domenie, backup/rollback i migracja3→8, zachowane wszystkie wcześniejsze dane i poświadczenia.
+- [x] Próba produkcyjna HTTP zapisu/rewizji/UUID/korekty/pauzy/wyniku, role kamer/widzów/operatora, blokady prywatnych plików i rzeczywisty render WWW.
+- [x] Mecz kontrolny5 anulowany, profile7/8 archiwalne, urządzenia testowe odwołane. Poprawione narzędzia backup/ZIP i dokumentacja.
+- [ ] Próby fizycznego APK/kamery według DEVICE_TESTS; hardware_verified=false. Etap4 pozostaje anulowany.
+
+Poniżej zachowana historia.
+
+---
+
 # Zamknięcie wspólnego wydania1.2.1 — 29.10.2026
 
 - [x] APK i WWW: wspólny zakres1–3, publiczny panel, zachowana własność i role; poprawka bilansu/rekordów Androida.

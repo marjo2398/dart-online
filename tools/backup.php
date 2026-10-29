@@ -85,8 +85,11 @@ try {
     foreach ($options as $value) { if (!is_string($value)) { failBackup('Każdy argument należy podać dokładnie raz.'); } }
     $apiDirectory = directoryPath($options['api-dir']);
     $publicRoot = directoryPath($options['public-root']);
-    if (!within($apiDirectory, $publicRoot) || basename($apiDirectory) !== 'api' || basename(dirname($apiDirectory)) !== 'dart') {
-        failBackup('Źródło musi wskazywać katalog dart/api we wskazanym public root.');
+    $appDirectory = dirname($apiDirectory);
+    $knownLayout = basename($appDirectory) === 'dart'
+        || (basename($appDirectory) === 'public' && basename(dirname($appDirectory)) === 'dart-lens-app');
+    if (!within($apiDirectory, $publicRoot) || basename($apiDirectory) !== 'api' || !$knownLayout) {
+        failBackup('Źródło musi wskazywać dart/api albo dart-lens-app/public/api we wskazanym public root.');
     }
     $destination = $options['destination'];
     if (!absolutePath($destination) || preg_match('~(?:^|[\\\\/])public_html(?:[\\\\/]|$)~i', $destination)) {

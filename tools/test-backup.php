@@ -78,7 +78,28 @@ try {
     [$exit] = runBackup(['api-dir' => $api, 'public-root' => $public, 'destination' => $destination]);
     checkBackup($exit === 1 && !file_exists($destination), 'Invalid key did not fail before destination creation.');
     passBackup('invalid device key fails before creating backup');
-    fwrite(STDOUT, "RESULT 6 PASS; isolated fixtures retained.\n");
+    $canonicalApi = $public . '/dart-lens-app/public/api';
+    mkdir($canonicalApi . '/data', 0700, true);
+    copy($scratch . '/private-backups/native/dart-online.sqlite', $canonicalApi . '/data/dart-online.sqlite');
+    file_put_contents($canonicalApi . '/config.local.php', $config);
+    file_put_contents($canonicalApi . '/data/device-secret.bin', $secret);
+    foreach ([true, false] as $native) {
+        $destination = $scratch . '/private-backups/canonical-' . ($native ? 'native' : 'pdo');
+        [$exit, , $stderr] = runBackup(['api-dir'=>$canonicalApi,'public-root'=>$public,'destination'=>$destination], $native);
+        checkBackup($exit === 0, 'Canonical deployment backup failed: ' . $stderr);
+        $canonicalCopy = new PDO('sqlite:' . $destination . '/dart-online.sqlite');
+        checkBackup($canonicalCopy->query('SELECT * FROM visits ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) === $original, 'Canonical copy differs.');
+        $canonicalCopy = null;
+        checkBackup(file_get_contents($destination . '/device-secret.bin') === $secret, 'Canonical key changed.');
+    }
+    passBackup('canonical dart-lens-app/public/api accepted by both consistent backup methods');
+    $wrongApi = $public . '/unrelated/api';
+    mkdir($wrongApi, 0700, true);
+    $destination = $scratch . '/private-backups/unrelated-layout';
+    [$exit] = runBackup(['api-dir'=>$wrongApi,'public-root'=>$public,'destination'=>$destination]);
+    checkBackup($exit === 1 && !file_exists($destination), 'Unrelated API layout accepted.');
+    passBackup('unrelated API layout remains rejected');
+    fwrite(STDOUT, "RESULT 8 PASS; isolated fixtures retained.\n");
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n"); exit(1);
 }

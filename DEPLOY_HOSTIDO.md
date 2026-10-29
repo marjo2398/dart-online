@@ -1,3 +1,9 @@
+# Wdrożono1.2.1 — 30.10.2026
+
+Aktualny wynik i dokładny backup: PROJECT_STATE.md. Backup CLI akceptuje kanoniczne dart-lens-app/public/api oraz historyczne dart/api, zachowując wszystkie pozostałe kontrole. Test-backup8 PASS. ZIP ma jawne separatory / i sprawdzony odczyt Linux; do następnego wdrożenia wybieraj Dart-Lens-WWW-1.2.1-portable-20261030.zip z Releases. Poniższa procedura nadal obowiązuje przy kolejnej aktualizacji.
+
+---
+
 # Zestaw1.2.1 — bez wdrożenia hostingu
 
 Aktualna paczka i para APK: [RELEASE_1_2_1](docs/RELEASE_1_2_1.md). Wersja1.2.1 zachowuje poniższą procedurę schema8, spójnego backupu i rollbacku. GitHub push/merge oraz publikacja artefaktów nie oznaczają wgrania plików na hosting.

@@ -1,3 +1,19 @@
+# Produkcja WWW/API1.2.1 — 30.10.2026
+
+Wdrożono i sprawdzono https://dartlens.host749284.xce.pl/ w potwierdzonym katalogu /home/host749284/domains/dartlens.host749284.xce.pl/public_html/dart-lens-app/public. Publiczny start bez logowania działa. Wdrożony payload: bc5a0408e3148043e5f792523b3a1e2b986afac2; późniejsze poprawki narzędzi kopii/pakowania i dokumentacji nie zmieniają tych13 plików aplikacji.
+
+Migracja schema3→8: najpierw na kopii, następnie na produkcji. Spójny SQLite3 backup i kopia poprzedniego kodu: /home/host749284/dart-online-backups/release-1.2.1-20261030-02/ (database-before/, code-before/). integralność=ok. Wszystkie pierwotne wartości6 graczy,4 meczów,14 wizyt,2 lotek,10 komend,10 audytów i1 urządzenia zachowane także po próbach. Config/PIN, device-secret i główny .htaccess/open_basedir bez zmian; stare assets zachowano.
+
+Rzeczywiste HTTPS: hash HTML/JS/CSS, public-session/API8, profile/historia/urządzenia, stare mecze1–4 PASS; config/SQLite/WAL/SHM/sekret403, nieistniejące kopie/logi403 lub404. Próba zapisu: CSRF, UUID/deduplikacja, stale revision, cofanie/korekta/pauza/częściowa wizyta, kamera→propozycja→korekta, odrębny operator, checkout/statystyki/zatwierdzenie/lock PASS. Kamera i widz nie zapisują; błędny token401. Były to testy HTTP kontraktu urządzeń, nie próba fizycznego APK.
+
+Mecz kontrolny5 anulowano i wyłączono z punktowania, profile7/8 są archiwalne,3 urządzenia kontrolne odwołano. Przeglądarka: publiczny start, konfiguracja i stary mecz1 po odświeżeniu bez logowania; konsola bez błędów. Screenshoty i raporty: dart-online/.tools/deploy-20261030/. Nie instalowano APK; hardware_verified=false nadal dotyczy telefonu/kamery.
+
+Przed wdrożeniem wykryto dwie usterki narzędzi: backup dopuszczał tylko dawny układ dart/api, ZIP Windows miał separatory\. Backup obsługuje teraz ściśle dart/api i dart-lens-app/public/api (8 testów PASS, obie metody/WAL). ZIP tworzy jawne nazwy z /; odczyt wszystkich24 plików i SHA sprawdzono linuksowym ZipArchive. Zawartość public/ jest identyczna z wydaniem. Nowa [przenośna paczka1.2.1](https://github.com/marjo2398/dart-online/releases/download/v1.2.1-internal/Dart-Lens-WWW-1.2.1-portable-20261030.zip) zastępuje pierwotny ZIP z nazwami Windows w przyszłych wdrożeniach. Nie zmieniono APK ani wersji zasad/metrics.
+
+Etap4 anulowany. Poniżej historia wcześniejszych zleceń; stwierdzenia o braku deploy opisują stan przed30.10.2026.
+
+---
+
 # Wspólny stan wydania1.2.1 — 29.10.2026
 
 WWW1.2.1/schema8 i APK1.2.1/code14 obejmują ten sam ukończony zakres wspólnych funkcji1–3; etap4 anulowany. WWW jest publiczne bez logowania; APK zachowuje offline i własne uwierzytelnianie online. Naprawiono lokalny bilans decyzji administracyjnych i rozróżnienie brakujących rekordów od zera. Pełna macierz,33 testy JVM,8 zestawów zgodności oraz granice w [dokumencie wydania](docs/RELEASE_1_2_1.md).

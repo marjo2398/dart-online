@@ -1,3 +1,9 @@
+# Hosting30.10.2026 — rzeczywiście wykonane
+
+Publiczne HTTPS/API/schema8, zachowanie danych/config/klucza, blokady HTTP, zapis i role na oznaczonym meczu5 oraz render/odświeżenie starego meczu PASS. Telefonu nie testowano. Backup8 PASS (kanoniczna ścieżka i obie metody), ZIP po poprawce przetestowany rzeczywistym linuksowym ZipArchive/24 pliki/SHA. Raporty i screenshoty .tools/deploy-20261030/.
+
+---
+
 # Brama wspólnego wydania1.2.1
 
 Wykonane wyniki i ograniczenia: [RELEASE_1_2_1](RELEASE_1_2_1.md). APK:33 JVM/0skip,39 przypadków kontraktu; osiem rzeczywistych meczów/obaj zawodnicy porównane z metrics1 serwera, w tym partial, remis i4 decyzje administracyjne. WWW/API i migracje przeszły testy na oddzielnych lokalnych bazach. Brak prób fizycznego telefonu i produkcji pozostaje jawny.
