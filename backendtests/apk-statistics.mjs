@@ -18,19 +18,22 @@ try {
   const ok=r=>{assert.equal(r.status,200,JSON.stringify(r.error));return r.data;};const web={};web.csrf=ok(await f.request('public-session',undefined,web)).csrf_token;
   const native=ok(await f.request('app-authorize',{password:f.password,device_name:'APK statistics parity',join_id:randomUUID()},{}));
   const results=[];
-  for(const kind of ['normal','nine','admin']){
+  for(const kind of ['normal','nine','partial','draw','admin','cancelled','surrender','walkover']){
     const actual=JSON.parse(execFileSync(join(jdk,process.platform==='win32'?'java.exe':'java'),['-cp',[out,cp].join(delimiter),'ApkStatisticsFixture',kind],{encoding:'utf8'}));
-    const accepted=ok(await f.request('local-game-import',actual.payload,native));const report=ok(await f.request('match-analysis',undefined,web,{game_id:accepted.game_id}));const server=report.players[0].metrics,local=actual.local;
-    for(const key of ['points','darts','average1','average3','first9','checkouts','won_legs','lost_legs','won_sets','lost_sets','holds','breaks','busts','field_visits','partial_visits','known_source_visits','decider_wins','decider_losses']){
+    const accepted=ok(await f.request('local-game-import',actual.payload,native));const report=ok(await f.request('match-analysis',undefined,web,{game_id:accepted.game_id}));
+    for(let player=0;player<2;player++){
+    const server=report.players[player].metrics,local=actual.locals[player];
+    for(const key of ['points','darts','average1','average3','first9','checkouts','wins','losses','draws','won_legs','lost_legs','won_sets','lost_sets','holds','breaks','busts','field_visits','partial_visits','known_source_visits','decider_wins','decider_losses']){
       if(local[key]===null||server[key]===null)assert.equal(local[key],server[key],kind+':'+key);else assert(Math.abs(local[key]-server[key])<1e-9,kind+':'+key);
     }
     for(const key of ['sectors','leg_lengths'])assert.deepEqual(Object.entries(local[key]||{}).sort(),Object.entries(server[key]||{}).sort());
     for(const [key,value] of Object.entries(server.bands))assert.equal(local.bands[key]||0,value);
     assert.equal(local.checkout_attempts,server.known_attempt_visits?server.attempts:null);
-    if(kind!=='admin')assert.equal(local.games,server.confirmed+server.pending);
-    else {assert.equal(local.draws,1);assert.equal(server.draws,0);assert.equal(server.administrative.interrupted,1);}
-    const limitation=kind==='admin'?'APK 1.2.0 local completed/draw counters include an interrupted game; server metrics v1 classify it separately. Android correction required.':null;
-    results.push({kind,local,server,limitation});console.log('PASS actual APK classes → import → WWW metrics: '+kind+(limitation?' (documented Android counter difference)':''));
+    for(const key of ['highest_visit','highest_checkout'])assert.equal(local[key],server[key]?.value??null,kind+':'+key);
+    assert.equal(local.games,server.confirmed+server.pending);
+    assert.deepEqual(Object.entries(local.administrative).sort(),Object.entries(server.administrative).sort());
+    results.push({kind,player,local,server});}
+    console.log('PASS actual APK classes → import → WWW metrics (both players): '+kind);
   }
   writeFileSync(join(out,'results.json'),JSON.stringify(results,null,2));
 } finally { f.close(); }
