@@ -1,3 +1,9 @@
+# Zestaw1.2.1 — bez wdrożenia hostingu
+
+Aktualna paczka i para APK: [RELEASE_1_2_1](docs/RELEASE_1_2_1.md). Wersja1.2.1 zachowuje poniższą procedurę schema8, spójnego backupu i rollbacku. GitHub push/merge oraz publikacja artefaktów nie oznaczają wgrania plików na hosting.
+
+---
+
 # Aktualizacja WWW1.2.0/schema8 — przygotowana lokalnie 29.10.2026
 
 Nie wykonano wdrożenia. Jedyny cel to https://dartlens.host749284.xce.pl/ i ostatnio potwierdzony katalog /home/host749284/domains/dartlens.host749284.xce.pl/public_html/dart-lens-app/public. Przed przyszłym wgraniem potwierdź go w SSH/DirectAdmin. Nie uruchamiaj dawnego /dart/ ani MySQL.

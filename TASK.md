@@ -1,3 +1,14 @@
+# Zamknięcie wspólnego wydania1.2.1 — 29.10.2026
+
+- [x] APK i WWW: wspólny zakres1–3, publiczny panel, zachowana własność i role; poprawka bilansu/rekordów Androida.
+- [x]33 testy JVM,39 scenariuszy reguł,8 zbiorów/obaj gracze przez rzeczywiste klasy/API, regresje WWW, lint/build.
+- [x] Kod, instrukcje, wersjonowane artefakty i manifesty przygotowane do zleconego push/merge obu repozytoriów. Patrz docs/RELEASE_1_2_1.md oraz PROJECT_STATE.md.
+- [ ] Osobno zlecić deploy API/schema8 i WWW na istniejący hosting. Próby urządzeń/produkcji nadal oczekujące, hardware_verified=false. Etap4 anulowany.
+
+Poniższe wpisy są historią; rozbieżność statystyk z1.2.0 naprawiono w1.2.1.
+
+---
+
 # Upgrade istniejącego WWW do APK1.2.0 — 29.10.2026
 
 - [x] Porównanie lokalnych implementacji/artefaktu APK: docs/WEB_UPGRADE.md. Bez agentów i ponownego audytu konkurencji.

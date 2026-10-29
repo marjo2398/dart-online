@@ -1,3 +1,9 @@
+# Uzupełnienie1.2.1 — rozbieżność APK naprawiona
+
+LocalStatistics APK1.2.1/code14 oddziela wszystkie4 decyzje administracyjne od normalnego bilansu, zachowuje liczbę zakończonych meczów i null/znane0, pomija partial przy rekordzie. Osiem zestawów/obaj zawodnicy porównane z rzeczywistym API bez znanych różnic w sprawdzonych metrykach. [Pełne wydanie i granice](RELEASE_1_2_1.md). Opisana poniżej rozbieżność dotyczy starej APK1.2.0; nie jest otwartym błędem1.2.1.
+
+---
+
 # Upgrade WWW do APK 1.2.0 — 29.10.2026
 
 Źródła odczytane lokalnie: WWW `188658a`, gałąź wyjściowa `feature/apk-integration-20261025`; Android `de8facb`, APK 1.2.0/code13 z kodu `c77797d`, manifest `.tools/artifacts/1.2.0-internal/release-manifest.json`. WWW przed zmianą miało package version0.0.0/schema7; po aktualizacji 1.2.0/schema8. Nie założono zgodności lokalnych gałęzi z GitHub/main. Produkcji nie badano przez zapis ani nie wdrażano.

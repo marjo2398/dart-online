@@ -1,3 +1,9 @@
+# Brama wspólnego wydania1.2.1
+
+Wykonane wyniki i ograniczenia: [RELEASE_1_2_1](RELEASE_1_2_1.md). APK:33 JVM/0skip,39 przypadków kontraktu; osiem rzeczywistych meczów/obaj zawodnicy porównane z metrics1 serwera, w tym partial, remis i4 decyzje administracyjne. WWW/API i migracje przeszły testy na oddzielnych lokalnych bazach. Brak prób fizycznego telefonu i produkcji pozostaje jawny.
+
+---
+
 # Publiczny upgrade WWW1.2.0 — 29.10.2026
 
 Osobne lokalne bazy, bez konfiguracji/danych produkcji. public-access.mjs9 grup, migration-public.mjs pełny v7→8/powtórzenie/wstrzyknięty rollback; apk-statistics.mjs rzeczywiste klasy APK i3 zbiory; web-client.mjs utrata ACK, pamięć/UUID, max1 odnowienie CSRF, 429 i stale401. DART_TEST_PHP wskazuje PDO SQLite; tu portable PHP8.5.12 sąsiedniego repo.

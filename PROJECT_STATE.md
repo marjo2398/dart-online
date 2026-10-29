@@ -1,3 +1,11 @@
+# Wspólny stan wydania1.2.1 — 29.10.2026
+
+WWW1.2.1/schema8 i APK1.2.1/code14 obejmują ten sam ukończony zakres wspólnych funkcji1–3; etap4 anulowany. WWW jest publiczne bez logowania; APK zachowuje offline i własne uwierzytelnianie online. Naprawiono lokalny bilans decyzji administracyjnych i rozróżnienie brakujących rekordów od zera. Pełna macierz,33 testy JVM,8 zestawów zgodności oraz granice w [dokumencie wydania](docs/RELEASE_1_2_1.md).
+
+Zlecono push/merge oraz publikację kodu i artefaktów GitHub obu repo. Bez deploy hostingu, zmian produkcji i instalacji telefonu; hardware_verified=false. Poniżej zachowana historia wcześniejszych zleceń.
+
+---
+
 # WWW1.2.0 — publiczny upgrade do APK1.2.0, 29.10.2026
 
 Na feature/public-web-apk-20261029 od188658a zaktualizowano istniejące WWW/API. APK1.2.0/code13 (Android de8facb, kod c77797d) bez zmian, przebudowy i instalacji. Cudze dopiski TASK i audyt w dart-lens zachowano. Jeden produkt, etap4 organizacji nadal anulowany.

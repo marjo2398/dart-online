@@ -15,7 +15,7 @@ const staticFiles=['index.html',...readdirSync(join(repo,'dist/assets')).map(p=>
 const publicFiles=[...staticFiles,...api.map(p=>'api/'+p),'api/.htaccess','api/data/.htaccess'];
 const copy=(source,target)=>{mkdirSync(dirname(target),{recursive:true});copyFileSync(source,target);};
 for(const file of publicFiles)copy(join(repo,'dist',file),join(output,'public',file));
-for(const file of ['README.md','PROJECT_STATE.md','DEPLOY_HOSTIDO.md','docs/PUBLIC_ACCESS.md','docs/WEB_UPGRADE.md','docs/API.md','docs/OFFLINE_SYNC.md','docs/METRICS.md','docs/TESTING.md'])copy(join(repo,file),join(output,file));
+for(const file of ['README.md','PROJECT_STATE.md','DEPLOY_HOSTIDO.md','docs/RELEASE_1_2_1.md','docs/PUBLIC_ACCESS.md','docs/WEB_UPGRADE.md','docs/API.md','docs/OFFLINE_SYNC.md','docs/METRICS.md','docs/TESTING.md'])copy(join(repo,file),join(output,file));
 copy(join(repo,'tools/backup.php'),join(output,'private-tools/backup.php'));
 function files(dir){return readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(join(dir,e.name)):[join(dir,e.name)]);}
 for(const file of files(join(output,'public'))){

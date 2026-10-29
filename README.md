@@ -1,3 +1,11 @@
+# Wspólny stan wydania1.2.1 — 29.10.2026
+
+WWW1.2.1/schema8 i APK1.2.1/code14 obejmują ten sam ukończony zakres wspólnych funkcji1–3; etap4 anulowany. WWW jest publiczne bez logowania; APK zachowuje offline i własne uwierzytelnianie online. Naprawiono lokalny bilans decyzji administracyjnych i rozróżnienie brakujących rekordów od zera. Pełna macierz,33 testy JVM,8 zestawów zgodności oraz granice w [dokumencie wydania](docs/RELEASE_1_2_1.md).
+
+Zlecono push/merge oraz publikację kodu i artefaktów GitHub obu repo. Bez deploy hostingu, zmian produkcji i instalacji telefonu; hardware_verified=false. Poniżej zachowana historia wcześniejszych zleceń.
+
+---
+
 # Dart Lens WWW 1.2.0 — publiczny panel, 29.10.2026
 
 Aktualizacja istniejącego React/Vite + PHP/SQLite, przygotowana lokalnie. Strona otwiera aplikację bez PIN-u, konta, sekretnego linku ani parowania przeglądarki. Gracze i mecze są wspólne. APK1.2.0 zachowuje natywną grę offline oraz własną autoryzację urządzeń. Etap4 organizacji rozgrywek pozostaje anulowany.
