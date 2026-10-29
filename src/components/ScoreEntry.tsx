@@ -26,7 +26,8 @@ export default function ScoreEntry({ value, onChange, mode, onMode, disabled, re
 }
 
 export function CheckoutPanel({ snapshot, enabled, setEnabled }: { snapshot: GameSnapshot; enabled: boolean; setEnabled: (v: boolean) => void }) {
-  const [preferred, setPreferred] = useState(''); const [hints, setHints] = useState<CheckoutHints | null>(null); const [error, setError] = useState('');
+  const [preferred, setPreferred] = useState('');
+  useEffect(()=>{setPreferred(snapshot.profile_preferences?.[snapshot.game.current_player_id??0]?.preferred_double??'');},[snapshot.game.current_player_id]); const [hints, setHints] = useState<CheckoutHints | null>(null); const [error, setError] = useState('');
   useEffect(() => {
     let active = true; setHints(null); setError('');
     if (enabled && snapshot.game.operation_state === 'playing') api.hints(snapshot.game.id, preferred).then(h => { if (active && h.revision === snapshot.game.revision) setHints(h); }).catch(e => { if (active) setError(messageFrom(e)); });

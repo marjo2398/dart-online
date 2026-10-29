@@ -1,10 +1,16 @@
 # Rozwój WWW
 
+## Etap 3 — wykonany lokalnie 29.10.2026
+
+Trwałe profile/goście, archiwizacja, kontrolowane aliasy, opcjonalny zapis prób/celów i sprzętu/warunków, analiza obowiązującej historii, raport meczu/legów i profilu, H2H, okresy/ostatnie legi/rekordy, filtry z Europe/Warsaw, keyset pagination i CSV/JSON/druk. Migracja v6 bez domysłów o starej historii; bez cache, usług i zależności. [Definicje](METRICS.md), [obsługa](PROFILES_ANALYSIS.md), [dowody](TESTING.md). Bez wdrożenia, zmian Androida i prób telefonu.
+
+Nie wykonano importu, mapy z fikcyjnymi współrzędnymi, oceny kamery na podstawie akceptacji ani metryk presji bez danych. Potencjalny następny zakres analityki należy ustalić na rzeczywistych potrzebach i kompletności danych; wdrożenie i Android nadal są osobnymi decyzjami.
+
 ## Etap 2 — wykonany lokalnie 29.10.2026
 
 Trzy tryby wpisywania, klawiatura/podpowiedzi, wcześniejsze korekty z podglądem i kontrolowanym wycofaniem, pauza, hold/break, rewanż, osobne decyzje administracyjne, zatwierdzanie/otwieranie i prawa. Migracja v5 zachowuje historię; nowe fazy zabezpieczone także przed starym APK. Bez wdrożenia i Androida. Obsługa: [OPERATOR](OPERATOR.md), dowody: [TESTING](TESTING.md).
 
-Następny rozwój WWW: etap 3 (rzetelne statystyki/profil) dopiero po osobnym zleceniu, bez dopisywania fikcyjnych prób/targetów. Wdrożenie, obsługa nowych formatów/faz przez Androida i rzeczywiste próby telefonów pozostają osobnymi krokami. Zaawansowana korekta nie przenosi automatycznie zależnych rzutów między graczami/legami.
+Etap 3 wykonano lokalnie powyżej; dalszy rozwój wymaga osobnego zlecenia. Wdrożenie, obsługa nowych formatów/faz przez Androida i rzeczywiste próby telefonów pozostają osobnymi krokami. Zaawansowana korekta nie przenosi automatycznie zależnych rzutów między graczami/legami.
 
 ## Etap 1 — wykonany lokalnie 28.10.2026
 

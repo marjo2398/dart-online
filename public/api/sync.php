@@ -149,6 +149,12 @@ function enrichSnapshot(PDO $pdo, array $game, array $snapshot): array
     $snapshot['record_versions']=sqlRows($pdo,'SELECT * FROM record_versions WHERE game_id=? ORDER BY id',[$id]);
     $snapshot['result_decisions']=sqlRows($pdo,'SELECT * FROM result_decisions WHERE game_id=? ORDER BY id',[$id]);
     $snapshot['permissions']=actorPermissions($GLOBALS['snapshotActor'] ?? ['role'=>'viewer','device'=>null]);
+    if (columnExists($pdo,'players','merged_into')) {
+        $snapshot['game']['context_kind']=$game['context_kind'] ?? null; $snapshot['game']['venue']=$game['venue'] ?? null;
+        $snapshot['equipment']=sqlRows($pdo,'SELECT * FROM game_equipment WHERE game_id=?',[$id]);
+        $snapshot['profile_preferences']=[];
+        foreach ([$game['player1_id'],$game['player2_id']] as $playerId) { $p=profileRow($pdo,canonicalPlayer($pdo,(int)$playerId)); $snapshot['profile_preferences'][(int)$playerId]=['preferred_double'=>$p['preferred_double'],'hints_enabled'=>isset($p['hints_enabled'])?(bool)$p['hints_enabled']:null]; }
+    }
     return $snapshot;
 }
 
@@ -174,6 +180,7 @@ function assertScope(array $actor, ?int $gameId): void
 
 function authorizeCommand(PDO $pdo, array $actor, string $action, array $input): void
 {
+    if (in_array($action,['profile-save','profile-archive','profile-merge','equipment-save','game-metadata'],true)) { assertProfileAdmin($actor); }
     if (strpos($action,'template-')===0 && ($actor['role']!=='admin' || !supportsFormats())) { problem(403,'admin-required','Szablony edytuje administrator WWW.'); }
     $adminOnly = ['player-delete','game-delete','device-code-create','device-revoke'];
     if (in_array($action,$adminOnly,true) && $actor['role'] !== 'admin') { problem(403,'admin-required','Ta operacja wymaga administratora WWW.'); }
@@ -202,7 +209,7 @@ function bumpGame(PDO $pdo, int $gameId): void
 
 function runCommand(PDO $pdo, string $action, array $body): array
 {
-    $newActions=['remaining-create','history-apply','game-pause','game-resume','game-adjudicate','result-confirm','result-reopen','game-rematch'];
+    $newActions=['profile-save','profile-archive','profile-merge','equipment-save','game-metadata','remaining-create','history-apply','game-pause','game-resume','game-adjudicate','result-confirm','result-reopen','game-rematch'];
     $known = array_merge($newActions,['template-save','template-delete','starter-select','player-create','player-delete','game-create','game-delete','game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','device-code-create','device-revoke','camera-select','observation-create','observation-review']);
     if (!in_array($action,$known,true)) { problem(404,'unknown-action','Nieznana operacja API.'); }
     $commandId = requiredUuid($body,'command_id');
@@ -221,7 +228,7 @@ function runCommand(PDO $pdo, string $action, array $body): array
         }
         if (in_array($action,['remaining-create','history-apply','game-pause','game-resume','game-adjudicate','result-confirm','result-reopen','game-rematch'],true) && !supportsOperations()) { problem(409,'client-update-required','Ta operacja wymaga WWW z obsługą operacji v2.'); }
         $gameActions = ['remaining-create','history-apply','game-pause','game-resume','game-adjudicate','result-confirm','result-reopen','game-rematch','starter-select','game-delete','game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','camera-select','observation-create','observation-review'];
-        $gameId = in_array($action,$gameActions,true) ? requiredInt($body,'game_id',1,PHP_INT_MAX) : null;
+        $gameId = in_array($action,array_merge($gameActions,['game-metadata']),true) ? requiredInt($body,'game_id',1,PHP_INT_MAX) : null;
         $before = $gameId !== null ? fetchGameSnapshot($pdo,$gameId) : null;
         if (($before['game']['revision'] ?? 0) !== $revision) { problem(409,'revision-conflict','Mecz zmienił się na innym ekranie. Odśwież wynik i podejmij decyzję ponownie.',['revision'=>$before['game']['revision'] ?? 0]); }
         if ($gameId!==null) { assertMatchOperation(fetchGameRow($pdo,$gameId),$action,$body); }
@@ -232,9 +239,10 @@ function runCommand(PDO $pdo, string $action, array $body): array
             $target = $lastVisit['mode'] === 'darts' && $lastDarts ? $lastDarts[count($lastDarts) - 1]['id'] : (string) $lastVisit['id'];
         }
         $result = dispatchCommand($pdo,$actor,$action,$body);
+        annotateScoring($pdo,$action,$body,$result);
         $changesScore = in_array($action,['remaining-create','history-apply','game-pause','game-resume','game-adjudicate','result-confirm','result-reopen','starter-select','game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','camera-select'],true)
             || ($action === 'observation-review' && ($body['decision'] ?? '') === 'accept');
-        if ($gameId !== null && $changesScore) {
+        if ($gameId !== null && ($changesScore || $action==='game-metadata')) {
             bumpGame($pdo,$gameId);
             rebuildAllPlayerStats($pdo);
         }
@@ -253,6 +261,11 @@ function runCommand(PDO $pdo, string $action, array $body): array
 function dispatchCommand(PDO $pdo, array $actor, string $action, array $body): array
 {
     switch ($action) {
+        case 'profile-save': return saveProfile($pdo,$body);
+        case 'profile-archive': return archiveProfile($pdo,$body);
+        case 'profile-merge': return mergeProfiles($pdo,$body);
+        case 'equipment-save': return saveEquipment($pdo,$body);
+        case 'game-metadata': return gameMetadata($pdo,$body);
         case 'remaining-create': return remainingVisit($pdo,$body);
         case 'history-apply': return applyCorrection($pdo,$body);
         case 'game-rematch': return rematch($pdo,$body);

@@ -25,11 +25,11 @@ ${dump}file_put_contents(__DIR__.'/before.json',json_encode(dumpData($p),JSON_TH
 file_put_contents(__DIR__.'/sequence.json',json_encode($p->query('SELECT name,seq FROM sqlite_sequence ORDER BY name')->fetchAll(),JSON_THROW_ON_ERROR));`);
 execFileSync(php,[...args,join(scratch,'seed.php')]);
 const rollback=join(scratch,'rollback');mkdirSync(join(rollback,'data'),{recursive:true});cpSync(join(api,'data/dart-online.sqlite'),join(rollback,'data/dart-online.sqlite'));
-for(const dest of [api,rollback])for(const name of ['index.php','sync.php','formats.php','operations.php'])cpSync(join(repo,'public/api',name),join(dest,name));
+for(const dest of [api,rollback])for(const name of ['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php'])cpSync(join(repo,'public/api',name),join(dest,name));
 writeFileSync(join(scratch,'rollback.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/rollback/index.php';$p=openDatabase();$p->exec('CREATE TABLE record_versions(collision TEXT)');$failed=false;try{migrateDatabase($p);}catch(Throwable $e){$failed=true;}
 if(!$failed || columnExists($p,'games','confirmed_at') || columnExists($p,'visits','active') || $p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn()!=4 || $p->query('PRAGMA foreign_keys')->fetchColumn()!=1)throw new Exception('Partial failed migration');echo 'rollback ok';`);
 assert.equal(execFileSync(php,[...args,join(scratch,'rollback.php')],{encoding:'utf8'}),'rollback ok');
-writeFileSync(join(scratch,'verify.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/api/index.php';${dump}$p=openDatabase();migrateDatabase($p);migrateDatabase($p);$all=dumpData($p);
+writeFileSync(join(scratch,'verify.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/api/index.php';${dump}$p=openDatabase();migrateDatabase($p);migrateDatabase($p);$all=dumpData($p);foreach(['players'=>['nickname','club','throwing_hand','notes','preferred_double','hints_enabled','archived','is_guest','merged_into','profile_revision'],'games'=>['context_kind','venue','rule_in','rule_out','match_unit'],'visits'=>['recording_level','checkout_attempts','source'],'darts'=>['target','checkout_attempt']] as $table=>$cols){foreach($all[$table] as &$r){foreach($cols as $col){unset($r[$col]);}}unset($r);}
 foreach($all['games'] as &$row){unset($row['is_paused'],$row['decision_json'],$row['confirmed_at'],$row['stats_eligible']);}unset($row);
 foreach($all['visits'] as &$row){if($row['active']!=1)throw new Exception('Old visit inactive');unset($row['active'],$row['double_confirmed'],$row['input_mode']);}unset($row);
 foreach($all['audit'] as &$row){unset($row['actor_context'],$row['details_json']);}unset($row);
@@ -42,4 +42,4 @@ if($p->query('SELECT double_confirmed FROM visits WHERE game_id=3')->fetchColumn
 $op=publicDevice($p->query('SELECT * FROM devices')->fetch());if($op['permissions']!==['score','correct_last'])throw new Exception('Permissions expanded');`);
 execFileSync(php,[...args,join(scratch,'verify.php')]);
 assert.deepEqual(JSON.parse(readFileSync(join(scratch,'after.json'))),JSON.parse(readFileSync(join(scratch,'before.json'))));
-console.log(`PASS v4 → v5: all old data, draw, partial turn, ID sequences, grants, repeat, injected rollback; scratch=${scratch}`);
+console.log(`PASS v4 → v6: all old data, draw, partial turn, ID sequences, grants, repeat, injected rollback; scratch=${scratch}`);

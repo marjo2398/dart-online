@@ -1,4 +1,5 @@
 import type { DashboardData, Device, GameSnapshot, Player, SessionState, MatchConfig, MatchTemplate, HistoryChange, CorrectionPreview, CheckoutHints, MatchPermission } from './types';
+import type { ProfileDetail, MergePreview, Equipment, AnalysisPackage, AnalysisFilters, HistoryPage, ScoringDetail } from './types';
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly details?: Record<string, unknown>) {
@@ -120,8 +121,19 @@ export async function retryPending(): Promise<unknown> {
 function remember(session: SessionState): SessionState { csrfToken = session.csrf_token; return session; }
 
 export const api = {
-  remaining(gameId: number, playerId: number, remaining: number, dartsUsed: number, doubleConfirmed: boolean, zeroConfirmed: boolean, revision: number): Promise<GameSnapshot> {
-    return mutate('remaining-create', { game_id: gameId, player_id: playerId, remaining, darts_used: dartsUsed, double_confirmed: doubleConfirmed, zero_visit_confirmed: zeroConfirmed }, revision);
+  profiles(q = '', state = 'all'): Promise<{players:Player[]}> { return request('profiles',{query:{q,state}}); },
+  profile(id:number): Promise<ProfileDetail> { return request('profile',{query:{id}}); },
+  saveProfile(player:Player): Promise<Player> { return mutate('profile-save',{...player,player_id:player.id}); },
+  archiveProfile(player:Player, archived:boolean): Promise<Player> { return mutate('profile-archive',{player_id:player.id,profile_revision:player.profile_revision,archived}); },
+  mergePreview(source:number,target:number,reason:string): Promise<MergePreview> { return request('profile-merge-preview',{method:'POST',body:{source_id:source,target_id:target,reason}}); },
+  mergeProfiles(source:number,target:number,reason:string,token:string): Promise<unknown> { return mutate('profile-merge',{source_id:source,target_id:target,reason,preview_token:token}); },
+  equipment(playerId:number, gear:Partial<Equipment>): Promise<Equipment> { return mutate('equipment-save',{player_id:playerId,...gear,...(gear.id?{equipment_id:gear.id,equipment_revision:gear.revision}:{}),archived:!!gear.archived}); },
+  metadata(gameId:number,revision:number,body:Record<string,unknown>): Promise<GameSnapshot> { return mutate('game-metadata',{game_id:gameId,...body},revision); },
+  analysis(filters:AnalysisFilters): Promise<AnalysisPackage> { return request('analysis',{query:filters}); },
+  matchAnalysis(id:number): Promise<AnalysisPackage> { return request('match-analysis',{query:{game_id:id}}); },
+  history(filters:AnalysisFilters,cursor = ''): Promise<HistoryPage> { return request('history-search',{query:{...filters,cursor}}); },
+  remaining(gameId: number, playerId: number, remaining: number, dartsUsed: number, doubleConfirmed: boolean, zeroConfirmed: boolean, revision: number, detail:ScoringDetail = {}): Promise<GameSnapshot> {
+    return mutate('remaining-create', { game_id: gameId, player_id: playerId, remaining, darts_used: dartsUsed, double_confirmed: doubleConfirmed, zero_visit_confirmed: zeroConfirmed,...detail }, revision);
   },
   hints(gameId: number, preferred: string): Promise<CheckoutHints> { return request('checkout-hints', { query: { game_id: gameId, preferred_double: preferred } }); },
   historyPreview(gameId: number, change: HistoryChange, revision: number): Promise<CorrectionPreview> {
@@ -155,17 +167,17 @@ export const api = {
   async login(password: string): Promise<SessionState> { return remember(await request('login', { method: 'POST', body: { password } })); },
   async logout(): Promise<SessionState> { return remember(await request('logout', { method: 'POST' })); },
   dashboard(): Promise<DashboardData> { return request('dashboard'); },
-  createPlayer(name: string): Promise<Player> { return mutate('player-create', { name }); },
+  createPlayer(name: string,isGuest = false): Promise<Player> { return mutate('player-create', { name,is_guest:isGuest }); },
   deletePlayer(playerId: number): Promise<{ deleted: true; id: number; name: string }> { return mutate('player-delete', { player_id: playerId }); },
   createGame(player1Id: number, player2Id: number, legsToWin: number, startingScore: number): Promise<GameSnapshot> {
     return mutate('game-create', { player1_id: player1Id, player2_id: player2Id, legs_to_win: legsToWin, starting_score: startingScore });
   },
   game(gameId: number, signal?: AbortSignal): Promise<GameSnapshot> { return request('game', { query: { id: gameId }, signal }); },
-  recordVisit(gameId: number, playerId: number, score: number, dartsUsed: number, doubleConfirmed: boolean, revision: number): Promise<GameSnapshot> {
-    return mutate('visit-create', { game_id: gameId, player_id: playerId, score, darts_used: dartsUsed, double_confirmed: doubleConfirmed }, revision);
+  recordVisit(gameId: number, playerId: number, score: number, dartsUsed: number, doubleConfirmed: boolean, revision: number, detail:ScoringDetail = {}): Promise<GameSnapshot> {
+    return mutate('visit-create', { game_id: gameId, player_id: playerId, score, darts_used: dartsUsed, double_confirmed: doubleConfirmed,...detail }, revision);
   },
-  dart(gameId: number, playerId: number, field: string, revision: number): Promise<GameSnapshot> {
-    return mutate('dart-create', { game_id: gameId, player_id: playerId, field }, revision);
+  dart(gameId: number, playerId: number, field: string, revision: number, detail:ScoringDetail = {}): Promise<GameSnapshot> {
+    return mutate('dart-create', { game_id: gameId, player_id: playerId, field,...detail }, revision);
   },
   correctDart(gameId: number, dartId: string, field: string, revision: number): Promise<GameSnapshot> {
     return mutate('dart-correct', { game_id: gameId, dart_id: dartId, field }, revision);
@@ -178,8 +190,8 @@ export const api = {
   selectCamera(gameId: number, deviceId: string | null, revision: number): Promise<GameSnapshot> {
     return mutate('camera-select', { game_id: gameId, device_id: deviceId }, revision);
   },
-  review(gameId: number, observationId: string, decision: 'accept' | 'reject', field: string, revision: number): Promise<GameSnapshot> {
-    return mutate('observation-review', { game_id: gameId, observation_id: observationId, decision, ...(decision === 'accept' ? { field } : {}) }, revision);
+  review(gameId: number, observationId: string, decision: 'accept' | 'reject', field: string, revision: number, detail:ScoringDetail = {}): Promise<GameSnapshot> {
+    return mutate('observation-review', { game_id: gameId, observation_id: observationId, decision, ...(decision === 'accept' ? { field,...detail } : {}) }, revision);
   },
   devices(): Promise<{ devices: Device[] }> { return request('devices'); },
   pairCode(role: Device['role'], gameId: number | null, hours: number, permissions?: MatchPermission[]): Promise<{ code: string; expires_at: number; role: string; game_id: number | null }> {
@@ -189,4 +201,10 @@ export const api = {
 };
 export function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : 'Wystąpił nieoczekiwany błąd.';
+}
+
+export async function downloadAnalysis(filters:AnalysisFilters,format:'json'|'csv',dataset = 'summary') {
+  const response = await fetch(endpoint('analysis-export',{...filters,format,dataset}),{credentials:'same-origin',cache:'no-store',redirect:'error'});
+  if (!response.ok) { const result=await response.json(); throw new ApiError(response.status,result.error?.code ?? 'export-error',result.error?.message ?? 'Eksport nie powiódł się.'); }
+  const url=URL.createObjectURL(await response.blob()); const link=document.createElement('a'); link.href=url; link.download=`dart-lens-${dataset}.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }

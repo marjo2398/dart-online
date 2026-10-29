@@ -19,6 +19,7 @@ import { ApiError, api, messageFrom } from './api';
 import DartGame from './components/DartGame';
 import Devices from './components/Devices';
 import GameSetup from './components/GameSetup';
+import Profiles from './components/Profiles';
 import { decisionNames, phaseNames } from './components/MatchManagement';
 import WriteStatus, { useWriteState } from './components/WriteStatus';
 import type { DashboardData, GameSnapshot, GameSummary, Player, SessionState } from './types';
@@ -35,11 +36,6 @@ function formatDate(value: string | null): string {
   if (!value) return '—';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
-}
-
-function average(player: Player): string {
-  if (player.total_darts_thrown === 0) return '—';
-  return ((player.total_points / player.total_darts_thrown) * 3).toFixed(1);
 }
 
 function ErrorNotice({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
@@ -147,72 +143,14 @@ function GameCard({
         <button
           className="button button-danger-ghost button-icon"
           type="button"
-          disabled={busy}
+          disabled={busy || game.visit_count > 0}
           onClick={() => onDelete(game.id)}
-          title="Usuń mecz"
+          title={game.visit_count > 0 ? "Historia jest chroniona — anuluj mecz w jego ekranie" : "Usuń pusty mecz"}
           aria-label={`Usuń mecz ${game.player1.name} kontra ${game.player2.name}`}
         >
           <Trash2 aria-hidden="true" />
         </button>
       </div>
-    </article>
-  );
-}
-
-function PlayerCard({ player, busy, onDelete }: { player: Player; busy: boolean; onDelete: (id: number) => Promise<void> }) {
-  const winRate = player.games_played > 0 ? Math.round((player.games_won / player.games_played) * 100) : 0;
-  return (
-    <article className="player-card">
-      <div className="player-card-heading">
-        <div>
-          <h3>{player.name}</h3>
-          <span>{player.games_won} wygranych z {player.games_played} · {winRate}%</span>
-        </div>
-        <strong>{average(player)} <small>AVG</small></strong>
-        <button
-          type="button"
-          className="icon-link danger"
-          disabled={busy}
-          onClick={() => onDelete(player.id)}
-          title="Usuń zawodnika"
-          aria-label={`Usuń zawodnika ${player.name}`}
-        >
-          <Trash2 aria-hidden="true" />
-        </button>
-      </div>
-      <dl className="stat-grid">
-        <div><dt>100–139</dt><dd>{player.count_100}</dd></div>
-        <div><dt>140–179</dt><dd>{player.count_140}</dd></div>
-        <div><dt>180</dt><dd>{player.count_180}</dd></div>
-        <div><dt>Najwyższa</dt><dd>{player.hi_score}</dd></div>
-        <div><dt>Checkout</dt><dd>{player.highest_checkout || '—'}</dd></div>
-        <div><dt>Najlepszy leg</dt><dd>{player.best_leg_darts ? `${player.best_leg_darts} lot.` : '—'}</dd></div>
-      </dl>
-    </article>
-  );
-}
-
-function HistoryRow({ game, busy, onOpen, onDelete }: {
-  game: GameSummary;
-  busy: boolean;
-  onOpen: (id: number) => Promise<void>;
-  onDelete: (id: number) => Promise<void>;
-}) {
-  const winner = game.winner_id === game.player1.id ? game.player1 : game.player2;
-  return (
-    <article className="history-row">
-      <div className="history-icon"><Trophy aria-hidden="true" /></div>
-      <div className="history-main">
-        <strong>{game.player1.name} <span>{game.config.match.unit === 'sets' ? game.player1.sets : game.player1.legs}</span> : <span>{game.config.match.unit === 'sets' ? game.player2.sets : game.player2.legs}</span> {game.player2.name}</strong>
-        <small>{game.decision ? decisionNames[game.decision.kind] : game.result === 'draw' ? 'Remis' : 'Wygrywa ' + winner.name} · {phaseNames[game.operation_state]} · {game.format_description}</small>
-      </div>
-      <time dateTime={game.finished_at ?? undefined}>{formatDate(game.finished_at ?? game.updated_at)}</time>
-      <button type="button" className="icon-link" disabled={busy} onClick={() => onOpen(game.id)} title="Otwórz mecz" aria-label="Otwórz szczegóły meczu">
-        <ChevronRight aria-hidden="true" />
-      </button>
-      <button type="button" className="icon-link danger" disabled={busy} onClick={() => onDelete(game.id)} title="Usuń mecz" aria-label="Usuń mecz z historii">
-        <Trash2 aria-hidden="true" />
-      </button>
     </article>
   );
 }
@@ -227,7 +165,7 @@ export default function App() {
   const writeState = useWriteState();
   const busyRef = useRef(false);
 
-  const [newPlayerName, setNewPlayerName] = useState('');
+
   const installDashboard = (data: DashboardData) => setDashboard(data);
 
   const handleApiError = (caught: unknown) => {
@@ -303,26 +241,6 @@ export default function App() {
     });
   };
 
-  const handleAddPlayer = async (event: FormEvent) => {
-    event.preventDefault();
-    const name = newPlayerName.trim();
-    if (!name) return;
-    await locked(async () => {
-      await api.createPlayer(name);
-      setNewPlayerName('');
-      await refreshDashboard();
-    });
-  };
-
-  const handleDeletePlayer = async (id: number) => {
-    const player = dashboard?.players.find((candidate) => candidate.id === id);
-    if (!player || !window.confirm(`Usunąć zawodnika „${player.name}”? Znikną też wszystkie jego mecze i wizyty. Tej operacji nie można cofnąć.`)) return;
-    await locked(async () => {
-      await api.deletePlayer(id);
-      await refreshDashboard();
-    });
-  };
-
   const handleOpenGame = async (id: number) => {
     await locked(async () => {
       setCurrentGame(await api.game(id));
@@ -330,7 +248,7 @@ export default function App() {
   };
 
   const handleDeleteGame = async (id: number) => {
-    if (!window.confirm('Usunąć ten mecz wraz ze wszystkimi wizytami? Statystyki zostaną przeliczone.')) return;
+    if (!window.confirm('Usunąć pusty mecz? Mecz z zapisaną historią można anulować na ekranie prowadzenia gry.')) return;
     await locked(async () => {
       const current = await api.game(id);
       await api.deleteGame(id, current.game.revision);
@@ -406,38 +324,7 @@ export default function App() {
           </section>
         </div>
 
-        <section className="panel players-panel" aria-labelledby="players-title">
-          <p className="muted">{dashboard.statistics_scope}</p>
-          <div className="section-heading section-heading-wrap">
-            <div><Users aria-hidden="true" /><div><p className="eyebrow">Ranking lokalny</p><h2 id="players-title">Zawodnicy i statystyki</h2></div></div>
-            <form className="inline-form" onSubmit={handleAddPlayer}>
-              <label className="sr-only" htmlFor="new-player">Nazwa nowego zawodnika</label>
-              <input id="new-player" type="text" maxLength={40} value={newPlayerName} onChange={(event) => setNewPlayerName(event.target.value)} placeholder="Nazwa zawodnika" disabled={busy} />
-              <button className="button button-secondary" type="submit" disabled={busy || !newPlayerName.trim()}><Plus aria-hidden="true" /> Dodaj</button>
-            </form>
-          </div>
-          {dashboard.players.length === 0 ? (
-            <div className="empty-state compact"><Users aria-hidden="true" /><strong>Jeszcze nikogo tu nie ma</strong><span>Dodaj pierwszego zawodnika powyżej.</span></div>
-          ) : (
-            <div className="players-grid">
-              {dashboard.players.map((player) => <PlayerCard key={player.id} player={player} busy={busy} onDelete={handleDeletePlayer} />)}
-            </div>
-          )}
-        </section>
-
-        <section className="panel history-panel" aria-labelledby="history-title">
-          <div className="section-heading">
-            <div><History aria-hidden="true" /><div><p className="eyebrow">Archiwum</p><h2 id="history-title">Historia meczów</h2></div></div>
-            <span className="history-caption"><CalendarDays aria-hidden="true" /> Ostatnie 50</span>
-          </div>
-          {dashboard.history.length === 0 ? (
-            <div className="empty-state compact"><History aria-hidden="true" /><strong>Brak zakończonych meczów</strong><span>Wynik pierwszego meczu zapisze się tutaj.</span></div>
-          ) : (
-            <div className="history-list">
-              {dashboard.history.map((game) => <HistoryRow key={game.id} game={game} busy={busy} onOpen={handleOpenGame} onDelete={handleDeleteGame} />)}
-            </div>
-          )}
-        </section>
+        <Profiles refreshDashboard={refreshDashboard} onOpenGame={handleOpenGame} />
       </div>
     </main>
   );

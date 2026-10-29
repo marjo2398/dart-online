@@ -1,3 +1,15 @@
+# Etap 3 WWW — profile, historia i analiza, 29.10.2026
+
+- [x] Definicje metrics v1 przed obliczeniami/testami; jawna kompletność, faktyczne mianowniki i zasady statusów.
+- [x] Profile/goście, edycja i preferencje, archiwizacja/przywrócenie; ochrona dawnych endpointów kasowania.
+- [x] Podgląd/scalenie przez trwały alias, konflikty konkretnych meczów, transakcja/audyt/retry, bez przepisywania uczestników.
+- [x] Opcjonalne próby/cel/poziom/pochodzenie na istniejących rekordach; sprzęt i warunki meczu.
+- [x] Analiza meczu/lega i profilu, H2H, ważone średnie/first-nine, dwa checkout %, przedziały/sektory, rekordy, okresy i ostatnie10/50/100 legów.
+- [x] Wspólne filtry, Europe/Warsaw/DST, stabilna stronicowana historia, CSV/JSON i widok druku.
+- [x] Migracja rzeczywistego v5→v6, ponowienie/rollback, ręcznie policzony fixture, większa próbka i test przepływu WWW.
+- [x] Dokumentacja API/migracji/metryk/instrukcji, bez nowych zależności i nowej APK.
+- [ ] Osobno: wdrożenie, przyszłe ekrany Androida i fizyczne próby; w tym etapie niczego nie opublikowano.
+
 # Etap 2 WWW — prowadzenie gry, 29.10.2026
 
 - [x] Suma/pola/„Pozostało”, faktyczna liczba lotek i legalność sekwencji, jawne rozstrzygnięcie niejednoznaczności.
@@ -10,7 +22,7 @@
 - [x] Zatwierdzenie, blokada, ponowne otwarcie z uzasadnieniem; rozdział praw bez rozszerzenia starych grantów.
 - [x] Testy API, migracje z rollbackiem, TypeScript/build, klient WWW i lokalny przepływ w dwóch kartach.
 - [x] Instrukcja operatora i aktualizacja SPEC/API/ARCHITECTURE/ROADMAP/stanu.
-- [ ] Osobno: ewentualny etap 3 WWW; autoryzacja wdrożenia, przyszły Android i testy sprzętowe. Niczego nie opublikowano.
+- [ ] Osobno: autoryzacja wdrożenia, przyszły Android i testy sprzętowe. Niczego nie opublikowano.
 
 ## Zachowany etap 1 WWW — formaty X01, 28.10.2026
 

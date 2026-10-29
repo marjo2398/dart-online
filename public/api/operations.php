@@ -373,6 +373,7 @@ function applyCorrection(PDO $pdo, array $body): array
         if ($changed) {
             archiveRecord($pdo,$id,'visit',(string)$v['id'],$old,$reason,$revision);
             $pdo->prepare('UPDATE visits SET '.implode('=?,',$keys).'=? WHERE id=?')->execute(array_merge($values,[$v['id']]));
+            $pdo->prepare("UPDATE visits SET checkout_attempts=NULL,source='correction' WHERE id=?")->execute([$v['id']]);
         }
     }
     foreach ($plan['_darts'] as $d) {
@@ -380,6 +381,8 @@ function applyCorrection(PDO $pdo, array $body): array
         if ($old['field']!==$d['field']) {
             archiveRecord($pdo,$id,'dart',$d['id'],$old,$reason,$revision);
             $pdo->prepare('UPDATE darts SET field=? WHERE id=?')->execute([$d['field'],$d['id']]);
+            $pdo->prepare("UPDATE darts SET target=NULL,checkout_attempt=NULL,source='correction' WHERE id=?")->execute([$d['id']]);
+            $pdo->prepare("UPDATE visits SET checkout_attempts=NULL,source='correction' WHERE id=?")->execute([$d['visit_id']]);
         }
     }
     foreach ($plan['_removed_visits'] as $v) {

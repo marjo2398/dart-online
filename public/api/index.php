@@ -11,6 +11,8 @@ const ALLOWED_LEGS_TO_WIN = [1, 2, 3, 5];
 require_once __DIR__ . '/sync.php';
 require_once __DIR__ . '/formats.php';
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/profiles.php';
+require_once __DIR__ . '/analysis.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
@@ -247,6 +249,7 @@ function migrateDatabase(PDO $pdo): void
     if (tableExists($pdo, 'schema_meta') && (int) $pdo->query("SELECT value FROM schema_meta WHERE key = 'schema_version'")->fetchColumn() >= 3) {
         migrateFormats($pdo);
         migrateOperations($pdo);
+        migrateProfiles($pdo);
         return;
     }
     transaction($pdo, static function () use ($pdo): void {
@@ -358,6 +361,7 @@ function migrateDatabase(PDO $pdo): void
     });
     migrateFormats($pdo);
     migrateOperations($pdo);
+    migrateProfiles($pdo);
 }
 
 function migrateLegacyThrows(PDO $pdo): void
@@ -615,7 +619,7 @@ function logout(): array
 
 function normalizePlayer(array $row): array
 {
-    return [
+    return profileFields($row) + [
         'id' => (int) $row['id'],
         'name' => (string) $row['name'],
         'games_played' => (int) $row['games_played'],
@@ -634,7 +638,7 @@ function normalizePlayer(array $row): array
 
 function getPlayers(PDO $pdo): array
 {
-    $rows = $pdo->query('SELECT * FROM players ORDER BY name COLLATE NOCASE, id')->fetchAll();
+    $rows = $pdo->query('SELECT * FROM players WHERE archived=0 AND merged_into IS NULL ORDER BY name COLLATE NOCASE, id')->fetchAll();
     return array_map('normalizePlayer', $rows);
 }
 
@@ -657,6 +661,9 @@ function normalizeVisit(array $row): array
         'opened_after' => (bool) ($row['opened_after'] ?? true),
         'double_confirmed' => (bool) ($row['double_confirmed'] ?? $row['is_checkout']),
         'input_mode' => $row['input_mode'] ?? 'score',
+        'recording_level' => $row['recording_level'] ?? null,
+        'checkout_attempts' => isset($row['checkout_attempts']) ? (int)$row['checkout_attempts'] : null,
+        'source' => $row['source'] ?? null,
     ];
 }
 
@@ -786,7 +793,7 @@ function createPlayer(PDO $pdo, array $input): array
         problem(422, 'invalid-player-name', 'Nazwa zawodnika musi mieć od 1 do 40 znaków.');
     }
 
-    return transaction($pdo, static function () use ($pdo, $name): array {
+    return transaction($pdo, static function () use ($pdo, $name, $input): array {
         $duplicate = $pdo->prepare('SELECT id FROM players WHERE name = :name COLLATE NOCASE LIMIT 1');
         $duplicate->execute(['name' => $name]);
         if ($duplicate->fetchColumn() !== false) {
@@ -804,6 +811,7 @@ function createPlayer(PDO $pdo, array $input): array
         }
 
         $id = (int) $pdo->lastInsertId();
+        if (array_key_exists('is_guest',$input)) { $pdo->prepare('UPDATE players SET is_guest=? WHERE id=?')->execute([(int)requiredBool($input,'is_guest'),$id]); }
         $statement = $pdo->prepare('SELECT * FROM players WHERE id = :id');
         $statement->execute(['id' => $id]);
         return normalizePlayer($statement->fetch());
@@ -812,26 +820,9 @@ function createPlayer(PDO $pdo, array $input): array
 
 function deletePlayer(PDO $pdo, int $playerId): array
 {
-    return transaction($pdo, static function () use ($pdo, $playerId): array {
-        if (sqlOne($pdo,'SELECT id FROM games WHERE confirmed_at IS NOT NULL AND (player1_id=? OR player2_id=?) LIMIT 1',[$playerId,$playerId])) { problem(409,'result-locked','Zawodnik ma zatwierdzony mecz. Najpierw uprawnione ponowne otwarcie z uzasadnieniem.'); }
-        $statement = $pdo->prepare('SELECT name FROM players WHERE id = :id');
-        $statement->execute(['id' => $playerId]);
-        $name = $statement->fetchColumn();
-        if ($name === false) {
-            problem(404, 'player-not-found', 'Nie znaleziono zawodnika.');
-        }
-        if (tableExists($pdo, 'throws')) {
-            $legacy = $pdo->prepare('DELETE FROM throws WHERE game_id IN (SELECT id FROM games WHERE player1_id = :id1 OR player2_id = :id2)');
-            $legacy->execute(['id1' => $playerId, 'id2' => $playerId]);
-        }
-        $deleteGames = $pdo->prepare('DELETE FROM games WHERE player1_id = :id1 OR player2_id = :id2');
-        $deleteGames->execute(['id1' => $playerId, 'id2' => $playerId]);
-        $pdo->prepare('DELETE FROM players WHERE id = :id')->execute(['id' => $playerId]);
-        rebuildAllPlayerStats($pdo);
-        return ['deleted' => true, 'id' => $playerId, 'name' => (string) $name];
-    });
+    profileRow($pdo,$playerId);
+    problem(409,'player-delete-disabled','Historia jest chroniona. Zarchiwizuj profil w WWW; usuwanie zawodnika jest wyłączone także dla starszych klientów.');
 }
-
 function createGame(PDO $pdo, array $input): array
 {
     return createFormattedGame($pdo,$input);
@@ -983,6 +974,7 @@ function deleteGame(PDO $pdo, int $gameId): array
 {
     return transaction($pdo, static function () use ($pdo, $gameId): array {
         fetchGameRow($pdo, $gameId);
+        if (sqlOne($pdo,'SELECT id FROM visits WHERE game_id=? LIMIT 1',[$gameId]) || sqlOne($pdo,'SELECT id FROM result_decisions WHERE game_id=? LIMIT 1',[$gameId])) { problem(409,'history-protected','Mecz ma zapisaną historię. Anuluj go z uzasadnieniem zamiast usuwać.'); }
         if (tableExists($pdo, 'throws')) {
             $pdo->prepare('DELETE FROM throws WHERE game_id = :id')->execute(['id' => $gameId]);
         }
@@ -1029,6 +1021,9 @@ try {
     if (session_status() === PHP_SESSION_ACTIVE) { session_write_close(); }
     // A snapshot consists of several SELECTs: pin one WAL read view across all of them.
     if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'GET') { $database->beginTransaction(); }
+    if (in_array($action,['profiles','profile','analysis','match-analysis','history-search','analysis-export'],true)) {
+        requireMethod('GET'); assertProfileAdmin($actor); handleAnalysisRead($database,$action,$_GET);
+    }
     if ($action === 'dashboard') {
         requireMethod('GET');
         $data = getDashboard($database);
@@ -1038,7 +1033,7 @@ try {
             assertOperationsRead(fetchGameRow($database,$assigned));
             $snapshot = fetchGameSnapshot($database, $assigned);
             $ids = [$snapshot['game']['player1_id'], $snapshot['game']['player2_id']];
-            $data['players'] = array_values(array_filter($data['players'], static fn(array $p): bool => in_array($p['id'], $ids, true)));
+            $data['players'] = array_map('normalizePlayer',sqlRows($database,'SELECT * FROM players WHERE id IN (?,?)',$ids));
             foreach (['active_games','history'] as $key) {
                 $data[$key] = array_values(array_filter($data[$key], static fn(array $g): bool => $g['id'] === $assigned));
             }
@@ -1094,6 +1089,7 @@ try {
     requireMethod('POST');
     if (!$hasBearer) { requireCsrf(); }
     $body = readJsonBody();
+    if ($action==='profile-merge-preview') { assertProfileAdmin($actor); $database->beginTransaction(); sendData(mergePreview($database,$body)); }
     if ($action==='history-preview') {
         if (!supportsOperations()) { problem(409,'client-update-required','Podgląd korekty wymaga obsługi operacji v2.'); }
         authorizeCommand($database,$actor,$action,$body);

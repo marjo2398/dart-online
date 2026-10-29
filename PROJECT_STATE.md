@@ -1,5 +1,17 @@
 # Dart Online — stan 29.10.2026
 
+## Etap 3 WWW — wykonany lokalnie, bez wdrożenia
+
+Profile/goście, edycja/preferencje, archiwizacja/przywrócenie i chronione kasowanie. Podgląd i transakcyjne aliasy duplikatów, blokada wspólnych/aktywnych meczów; stare ID uczestników pozostają.
+
+Analiza metrics v1 z obowiązujących danych: ważone średnie/first-nine z pokryciem, dwa checkout %, przedziały/sektory, legi/hold/break/decidery, H2H, okresy/ostatnie10/50/100 legów i źródła rekordów. Filtry zasad/statusów, Europe/Warsaw/DST, stabilne strony, CSV/JSON i druk. Opcjonalne próby/cele/pochodzenie, sprzęt i warunki; stare braki pozostają nieznane. [Definicje](docs/METRICS.md), [instrukcja](docs/PROFILES_ANALYSIS.md).
+
+SQLite v6 addytywnie zachowuje dane/ID/poświadczenia/historię; powtórzenie i rollback PASS. Bez cache/usług/zależności. APK nie kasuje historii ani nie wybiera archiwalnych do nowej gry; widzi ich w dawnym meczu. Nowe profile/eksport admin-only, granty bez rozszerzeń.
+
+Testy: analiza9 grup, rzeczywiste v5(48b55f2)→v6 i starsze migracje, API19/19, operacje12, formaty13, klient9, lint/build/PHP PASS.1200 meczów/6000 wizyt: sumy/okna/strony/indeks zgodne, lokalnie0,251s/30MiB (nie hosting). WWW: profil→mecz→korekta→przeliczenie→archiwum→CSV, nazwa/alias i dwa okresy PASS. [Testy i ograniczenia](docs/TESTING.md).
+
+Gałąź feature/apk-integration-20261025, bazowe etapy1/2:96bd061/48b55f2. Bez deploy/push/merge i produkcyjnych danych. Android72ca997 i cudze TASK/audyt bez zmian. PHP8.5.12 lokalnie; bez wykonania na7.4, prób telefonu/kamery i fizycznego wydruku. Następne: odbiór lokalny; wdrożenie i przyszły Android wymagają osobnego zlecenia.
+
 ## Etap 2 WWW — wykonany lokalnie, bez wdrożenia
 
 Trzy sposoby wpisywania: suma/pola/„pozostało”, klawiatura ekranowa i laptopa, popularne wartości, opcjonalne checkouty wg lotek i preferowanego double. Zachowane głos i komendy; wskazówki zejścia można wyłączyć. Serwer sprawdza również legalność sekwencji przed bust/checkout, bez wymyślania pól.

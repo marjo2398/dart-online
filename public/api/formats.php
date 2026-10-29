@@ -181,9 +181,12 @@ function createFormattedGame(PDO $pdo, array $input): array
     assertFormatClient(['legacy_compatible'=>$compatible]);
     if ($c['starters']['method']==='random') { $c['starters']['player']=random_int(1,2); }
     if (count(sqlRows($pdo,'SELECT id FROM players WHERE id IN (?,?)',[$p1,$p2]))!==2) { problem(422,'player-not-found','Wybrany zawodnik nie istnieje.'); }
+    foreach ([$p1,$p2] as $player) { $profile=profileRow($pdo,$player); if ($profile['archived'] || $profile['merged_into']!==null) { problem(409,'profile-inactive','Wybierz aktywny niescalony profil.'); } }
     $pdo->prepare('INSERT INTO games(player1_id,player2_id,legs_to_win,starting_score,config_json,legacy_compatible) VALUES (?,?,?,?,?,?)')
         ->execute([$p1,$p2,$c['match']['unit']==='sets'?$c['legs_per_set']:$c['match']['target'],$c['scoring']['start'],json_encode($c,JSON_THROW_ON_ERROR),(int)$compatible]);
-    return fetchGameSnapshot($pdo,(int)$pdo->lastInsertId());
+    $newId=(int)$pdo->lastInsertId();
+    $pdo->prepare('UPDATE games SET rule_in=?,rule_out=?,match_unit=? WHERE id=?')->execute([$c['scoring']['in'],$c['scoring']['out'],$c['match']['unit'],$newId]);
+    return fetchGameSnapshot($pdo,$newId);
 }
 
 function assertResultClient(array $result): void
@@ -208,7 +211,7 @@ function replayFormat(array $game, array $visits): array
     $opened=[$p1=>$c['scoring']['in']==='straight',$p2=>$c['scoring']['in']==='straight'];
     $legs=$sets=$setLegs=$points=$darts=$high=$legDarts=$zero;
     $leg=1; $set=1; $legInSet=1; $setStarter=$initial; $starter=$initial; $current=$initial;
-    $winner=null; $finished=false; $results=json_decode($game['starter_results'],true,32,JSON_THROW_ON_ERROR); $legResults=[];
+    $winner=null; $finished=false; $results=json_decode($game['starter_results'],true,32,JSON_THROW_ON_ERROR); $legResults=[]; $contexts=[];
     $phase='regular'; $decider=false; $sudden=false; $target=1; $rule=$c['deciding'];
     $prepare = static function () use (&$phase,&$decider,&$sudden,&$target,&$rule,&$starter,&$current,$c,&$setLegs,&$legs,&$sets,$p1,$p2,&$leg,&$legInSet,&$setStarter,$initial,$other,$results): void {
         $lastSet=$c['match']['unit']==='sets' && $sets[$p1]===$c['match']['target']-1 && $sets[$p2]===$c['match']['target']-1;
@@ -232,11 +235,12 @@ function replayFormat(array $game, array $visits): array
     $prepare();
     foreach ($visits as $v) {
         $id=$v['player_id'];
+        $contexts[$v['id']]=['remaining'=>$scores[$id],'opened'=>$opened[$id],'set_no'=>$set,'starter_id'=>$starter,'phase'=>$phase];
         $scores[$id]-=$v['applied_score']; $points[$id]+=$v['applied_score']; $darts[$id]+=$v['darts_used'];
         $high[$id]=max($high[$id],$v['applied_score']); $legDarts[$id]+=$v['darts_used'];
         $opened[$id]=$v['opened_after'];
         if ($v['is_checkout']) {
-            $legResults[]=['leg_no'=>$leg,'set_no'=>$set,'winner_id'=>$id,'starter_id'=>$starter,'kind'=>$starter===null?'unknown':($starter===$id?'hold':'break')];
+            $legResults[]=['leg_no'=>$leg,'set_no'=>$set,'winner_id'=>$id,'starter_id'=>$starter,'kind'=>$starter===null?'unknown':($starter===$id?'hold':'break'),'darts'=>$legDarts[$id],'phase'=>$phase,'checkout_visit_id'=>$v['id']];
             $legs[$id]++; $setLegs[$id]++;
             if ($c['match']['unit']==='fixed') {
                 $finished=array_sum($legs)>=$c['match']['target'];
@@ -273,7 +277,7 @@ function replayFormat(array $game, array $visits): array
         'config'=>$c,'format_version'=>1,'format_description'=>formatDescription($c),'legacy_compatible'=>(bool)$game['legacy_compatible'],
         'aggregate_allowed'=>$c['scoring']['out']!=='master' && ($current===null || $opened[$current]),
         'created_at'=>$game['created_at'],'updated_at'=>$game['updated_at'],'finished_at'=>$game['finished_at']],
-        'players'=>$players,'visits'=>$visits,'can_undo'=>count($visits)>0,'leg_results'=>$legResults];
+        'players'=>$players,'visits'=>$visits,'can_undo'=>count($visits)>0,'leg_results'=>$legResults,'visit_contexts'=>$contexts];
 }
 
 function persistCompletion(PDO $pdo, int $id): void
@@ -327,4 +331,8 @@ function recalculateDartVisit(PDO $pdo, int $gameId, int $visitId): void
     $fields=array_column(sqlRows($pdo,'SELECT field FROM darts WHERE visit_id=? AND active=1 ORDER BY dart_no',[$visitId]),'field');
     $values=evaluateDarts($before['game']['config'],$player['remaining'],$player['opened'],$fields);
     $pdo->prepare('UPDATE visits SET declared_score=?,applied_score=?,darts_used=?,is_bust=?,is_checkout=?,is_complete=?,opened_after=? WHERE id=?')->execute(array_merge($values,[$visitId]));
+    if (columnExists($pdo,'visits','checkout_attempts')) {
+        $sum=sqlOne($pdo,'SELECT COUNT(*) n,COUNT(checkout_attempt) known,SUM(checkout_attempt) attempts FROM darts WHERE visit_id=? AND active=1',[$visitId]);
+        $pdo->prepare('UPDATE visits SET checkout_attempts=? WHERE id=?')->execute([(int)$sum['n']===(int)$sum['known']?(int)$sum['attempts']:null,$visitId]);
+    }
 }

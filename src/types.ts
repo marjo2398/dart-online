@@ -4,6 +4,8 @@ export interface SessionState {
 }
 
 export interface Player {
+  nickname: string | null; club: string | null; throwing_hand: string | null; notes: string | null;
+  preferred_double: string | null; hints_enabled: boolean | null; archived: boolean; is_guest: boolean; merged_into: number | null; profile_revision: number;
   id: number;
   name: string;
   games_played: number;
@@ -36,6 +38,7 @@ export interface MatchPlayerState {
 }
 
 export interface Visit {
+  recording_level: 'quick' | 'extended' | 'detailed' | null; checkout_attempts: number | null; source: string | null;
   double_confirmed: boolean;
   input_mode: 'score' | 'remaining';
   id: number;
@@ -54,6 +57,7 @@ export interface Visit {
 }
 
 export interface GameState {
+  context_kind?: string | null; venue?: string | null;
   operation_state: 'playing' | 'paused' | 'awaiting_starter' | 'resolved' | 'confirmed';
   is_paused: boolean;
   confirmed_at: string | null;
@@ -89,6 +93,8 @@ export interface GameState {
 }
 
 export interface GameSnapshot {
+  profile_preferences?: Record<number, { preferred_double: string | null; hints_enabled: boolean | null }>;
+  equipment?: EquipmentAssignment[];
   permissions: MatchPermission[];
   leg_results: { leg_no: number; set_no: number; winner_id: number; starter_id: number | null; kind: 'hold' | 'break' | 'unknown' }[];
   withdrawn_visits: Visit[];
@@ -126,6 +132,7 @@ export interface Device {
 }
 
 export interface Dart {
+  target?: string | null; checkout_attempt?: number | null;
   id: string;
   game_id: number;
   leg_no: number;
@@ -221,3 +228,31 @@ export interface CorrectionPreview {
   withdrawn_visits: number; withdrawn_darts: number;
 }
 export interface CheckoutHints { revision: number; remaining: number | null; darts_left: number; routes: string[][]; message: string }
+
+export interface Equipment { id: number; player_id: number; name: string; weight: number | null; notes: string | null; archived: number; revision: number }
+export interface EquipmentAssignment { player_id: number; equipment_id: number; name_snapshot: string; weight_snapshot: number | null }
+export interface ProfileDetail { player: Player; canonical_id: number; alias_ids: number[]; equipment: Equipment[]; merges: { source_id: number; target_id: number; reason: string; created_at: string }[] }
+export interface MergePreview { preview_token: string; can_apply: boolean; games: number; visits: number; darts: number; conflicts: { game_id: number; reason: string }[] }
+export type AnalysisFilters = Record<string, string>;
+export interface MetricRecord { value: number; game_id: number; record_id: number }
+export interface AnalysisMetrics {
+  games: number; scoring_games: number; confirmed: number; pending: number; active: number; wins: number; losses: number; draws: number;
+  administrative: Record<string,number>; points: number; darts: number; visits: number; complete_visits: number; partial_visits: number; field_visits: number; known_source_visits: number; busts: number;
+  average1: number | null; average3: number | null; first9: number | null; first9_known: number; first9_eligible: number;
+  bands: Record<string,number>; highest_visit: MetricRecord | null; highest_checkout: MetricRecord | null; checkout_100: number; checkouts: number;
+  opportunities: number; opportunity_wins: number; known_attempt_visits: number; known_opportunities: number; attempts: number; attempt_wins: number;
+  checkout_attempt_pct: number | null; checkout_visit_pct: number | null; won_legs: number; lost_legs: number; won_sets: number; lost_sets: number;
+  best_leg: MetricRecord | null; average_won_leg: number | null; leg_lengths: Record<string,number>; holds: number; breaks: number; unknown_starters: number; decider_wins: number; decider_losses: number;
+  doubles: Record<string,{attempts:number;hits:number;checkouts:number}>; sectors: Record<string,number>;
+  timeline: Record<string,{points:number;darts:number;average3:number | null;games:number;wins:number;losses:number;draws:number;administrative:number}>;
+}
+export interface PlayerAnalysis { player: Player; metrics: AnalysisMetrics; last_legs?: Record<number,AnalysisMetrics> }
+export interface MatchAnalysis extends Pick<GameSnapshot,'game'|'players'|'visits'|'darts'> {
+  equipment:EquipmentAssignment[];
+  leg_results: { leg_no:number; set_no:number; winner_id:number; starter_id:number | null; kind:string; darts:number; phase:string }[];
+  visit_contexts: Record<number,{remaining:number;opened:boolean;set_no:number;starter_id:number | null;phase:string}>;
+  included_scoring: boolean; quality: { visits:number;field_visits:number;attempt_visits:number;partial_visits:number;previous_versions:number;withdrawn_visits:number };
+}
+export interface AnalysisPackage { schema_version:number; metrics_version:number; generated_at:string; timezone:string; filters:AnalysisFilters; policy:string; rule_groups:Record<string,number>; mixed_rules:boolean; sample_games:number; players:PlayerAnalysis[]; matches?:MatchAnalysis[] }
+export interface HistoryPage { items:GameSummary[]; next_cursor:string | null; filters:AnalysisFilters; sort:string }
+export interface ScoringDetail { recording_level?:'quick'|'extended'; checkout_attempts?:number; target?:string; checkout_attempt?:boolean }

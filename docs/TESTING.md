@@ -1,5 +1,21 @@
-# Weryfikacja WWW — etapy 1–2
+# Weryfikacja WWW — etapy 1–3
 
+
+## Etap 3 — 29.10.2026, nowe lokalne fixture
+
+Definicje [METRICS v1](METRICS.md) zapisano przed obliczeniami i oczekiwaniami testów. Oczekiwania ręczne, nie generowane kodem metryk: Ala w trzech legach40/6,40/1,100/9 →180/16, AVG3=33,75 (nie średnia średnich); first-nine100/9×3=33⅓, pokrycie1/3;3 checkouty/4 jawne próby=75%,3/6 wizyt z możliwością=50%, pokrycie prób4/6. Bust Bartka za60 przy40 zużywa jedną faktyczną lotkę i daje0 pkt. Oddzielne checkouty w1/2/3 lotkach, double-in S20 przed otwarciem nie odejmuje pkt, zużywa lotkę; przekroczenie granicy9 wewnątrz sumy pozostaje nieznane.
+
+| Kontrola | Wynik | Zakres |
+|---|---|---|
+| `node backendtests/analysis.mjs` | 9 grup PASS | Ręczne mianowniki/first-nine/dwa checkout %, brak vs0, pasma/double, długości1/2/3, double-in, granica9, preview/korekta/wycofanie/retry, statusy/admin/lock/reopen, gość/profil/archiwum, stary delete/new-game, konflikty scalania i alias bez zmiany uczestników, sprzęt/snapshot/filtr właściciela, CSV/JSON zgodny z filtrem/Polskie znaki/cytowanie/formuły/brak sekretów, oba DST Warszawy, keyset i nowy mecz, odmowy ról. Wymuszony błąd po zmianie aliasu cofa całość; identyczny retry zapisuje raz. Sprzeczne próby checkoutu cofają również rzut. |
+| `node backendtests/migration-profiles.mjs` | PASS | Rzeczywisty schematv5 z48b55f2: gracze/mecze/wizyty/lotki/komendy/audyt/wersje/decyzje/urządzenia/szablony/sekwencje identyczne w dawnych polach; stare próby/cele/poziomy nieznane; powtórzenie no-op; błąd po dodaniu kolumn cofa całą migrację do5; integralność/FK i skorygowana częściowa wizyta zachowane. |
+| `node backendtests/analysis-scale.mjs` | PASS |1200 zakończonych501 i6000 wizyt: niezależne601200pkt/10800lotek, AVG3 i first-nine167; ostatnie10:5010pkt; dwie strony1200..1181 i1180..1161, plan używa idx_games_rules_date. Lokalnie0,251s, peak30MiB PHP. To pomiar fixture laptopa, bez wniosku o wydajności hostingu. |
+| Regresja API / operacji / formatów |19/19 /12 /13 grup PASS | Zmieniono wspólny schemat/adnotacje/cofanie i replay kontekstu, dlatego wykonano ukierunkowaną regresję etapów1–2, w tym kamerę, transakcje i idempotencję. Zmieniono oczekiwanie schematu6 i jawnej blokady player-delete. |
+| Migracje v3/v4→v6; klient WWW | PASS;9 kontroli PASS | Zachowane starsze kontrole z porównaniem wszystkich dawnych kolumn; nowe kolumny usuwane tylko z porównania do dawnego fixture. Bez osłabiania dawnych oczekiwań. |
+| TypeScript/Vite, składnia wszystkich6 modułów PHP | PASS | Bez nowych/aktualizowanych zależności. PHP8.5.12 lokalnie; osobnego wykonania na7.4 nie było. Paczka nie zawiera config.local.php ani lokalnej bazy. |
+| Przepływ przeglądarki / rzeczywisty download | PASS | Gość→trwały profil z tym samym ID, preferencja double, mecz501 do1; extended180(0 prób), quick0, extended180(0 prób), quick0, extended141(1 próba)/3 lotki: AVG167. Korekta141→131: aktywny mecz, AVG163,67, dawny checkout/wygrana znikają. Quick0 i rzeczywiste D5 z celem D5/próbą:501/10, AVG150,3, first-nine163,67. Archiwum ukrywa w nowej grze, raport/historia zachowane. CSV pobrany przez UI,501/10 i oba checkout %100 oraz50 zgodne z widokiem. Zmiana nazwy zachowuje ID/mecz; preview/scalenie aliasu nie podwaja danych, widok odświeża. Okres A bez danych, B:1 mecz/10lotek/150,3/100%/50%. |
+
+Wizualnie sprawdzono raport i tabelę porównania. Raport ma przycisk przeglądarkowego druku i arkusz izolujący sam raport, bez biblioteki PDF. Fizycznego wydruku nie wykonano. Brak nowej APK, testów Androida, telefonu i fizycznej kamery; uprawnienia/stare żądania sprawdzono w API i kodzie OnlineModels/OnlineRepository/OnlineViewModel. Nie używano bazy ani sekretów produkcji, nie wykonywano audytu całego repo i nie powtarzano zaliczonych kontroli bez nowej zmiany.
 ## Etap 2 — 29.10.2026, wyłącznie lokalne fixture
 
 | Kontrola | Wynik | Zakres |

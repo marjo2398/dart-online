@@ -23,7 +23,7 @@ Gałąź integracji dodaje wspólny wynik WWW/APK, pojedyncze lotki i częściow
 - odczyty kamery wymagające zatwierdzenia lub korekty przez operatora;
 - wznowienie aktywnej gry z pełnego stanu zapisanego w SQLite;
 - trwała lista zawodników, meczów, wizyt i przeliczanych statystyk;
-- historia 50 ostatnich zakończonych meczów;
+- stronicowana historia z filtrami, profile/goście, archiwizacja i kontrolowane aliasy duplikatów;
 - polskie komendy głosowe, np. „wynik 60”, „wynik sto osiemdziesiąt”, „cofnij”;
 - komentarze głosowe TTS w przeglądarce;
 - logowanie PIN-em lub hasłem, sesja HttpOnly/SameSite, CSRF i limit prób logowania.
@@ -33,6 +33,8 @@ Backend jest źródłem prawdy. Po zapisie wizyty i cofnięciu frontend przyjmuj
 **Etap 2 (29.10.2026), lokalnie:** suma/pola/„pozostało”, klawiatura ekranowa i laptopa, opcjonalne zejścia, korekta wcześniejszej historii z podglądem i kontrolowanym wycofaniem, pauza, hold/break, rewanż, decyzje administracyjne, zatwierdzanie/otwieranie i jawne uprawnienia. Migracja v5 zachowuje historię. [Krótka instrukcja operatora](docs/OPERATOR.md). Starsze APK nie dostaje rozszerzeń; serwer odrzuca niedozwolone zapisy i odczyty faz. **Bez wdrożenia i nowej APK.**
 
 Etap formatów z 28.10.2026 wykonano **lokalnie, bez wdrożenia**. APK1.0.1 obsługuje dawne formaty; serwer filtruje i blokuje nowe dla starego klienta. Master/straight-out to warianty dodatkowe. Przed otwarciem double/master-in i przy master-out wpisuj pojedyncze lotki. [Reguły i granice](docs/SPEC.md), [testy](docs/TESTING.md), [dalszy plan](docs/ROADMAP.md).
+
+**Etap 3 (29.10.2026), lokalnie:** trwałe profile/goście, archiwizacja i aliasy duplikatów, opcjonalne deklaracje prób/celów, sprzęt/warunki, analiza meczu i profilu, okresy/ostatnie legi, stronicowana historia i bezpieczny eksport CSV/JSON. [Instrukcja profili i analizy](docs/PROFILES_ANALYSIS.md), [definicje metrics v1](docs/METRICS.md). SQLite v6, bez wdrożenia i Androida.
 
 ## Wymagania lokalne
 
@@ -96,7 +98,7 @@ Wszystkie wywołania trafiają do `api/index.php?action=...`; API nie wymaga `mo
 
 Każda wizyta przechowuje numer lega, kolejność, zawodnika, wynik zadeklarowany i faktycznie odjęty, faktyczną liczbę lotek oraz flagi bust/checkout. API weryfikuje też, czy zadeklarowany wynik jest matematycznie możliwy z podanej liczby legalnych lotek.
 
-Statystyki globalne są przebudowywane po zapisaniu lub cofnięciu wizyty, zakończeniu oraz usunięciu meczu lub zawodnika. Usunięcie danych nie pozostawia zawyżonych wyników przeciwnika.
+Nowa analiza metrics v1 jest liczona bez cache z obowiązujących wizyt/lotek. Dawne pola statystyczne katalogu zachowują ograniczony kontrakt APK; nowy WWW korzysta z analizy z filtrami i pokryciem. Usuwanie zawodnika oraz meczu z historią jest blokowane; domyślne operacje to archiwizacja i anulowanie.
 
 ## Kopia zapasowa
 

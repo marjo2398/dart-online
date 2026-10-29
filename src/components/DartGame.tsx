@@ -18,6 +18,8 @@ import DartControls from './DartControls';
 import Devices from './Devices';
 import ScoreEntry, { CheckoutPanel } from './ScoreEntry';
 import HistoryCorrection from './HistoryCorrection';
+import MatchMetadata from './MatchMetadata';
+import { MatchReport } from './Analysis';
 import MatchManagement, { phaseNames, decisionNames } from './MatchManagement';
 import WriteStatus, { useWriteState } from './WriteStatus';
 import type { GameSnapshot, MatchPlayerState, Visit } from '../types';
@@ -161,6 +163,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired, on
   const [inputValue, setInputValue] = useState('');
   const [entryMode, setEntryMode] = useState<'score' | 'remaining'>('score');
   const [hintsEnabled, setHintsEnabled] = useState(false);
+  const [recording,setRecording]=useState<'quick'|'extended'|'detailed'>('quick');const [attempts,setAttempts]=useState('');const [report,setReport]=useState(false);
   const [remainingDialog, setRemainingDialog] = useState<{ value: number; revision: number } | null>(null);
   const [remainingDarts, setRemainingDarts] = useState(3);
   const [remainingDouble, setRemainingDouble] = useState(false);
@@ -189,6 +192,9 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired, on
   const dialogRef = useRef<HTMLElement>(null);
 
   const currentPlayer = snapshot.players.find((player) => player.id === snapshot.game.current_player_id) ?? null;
+  useEffect(()=>{setAttempts('');},[snapshot.game.revision]);
+  useEffect(()=>{const pref=snapshot.profile_preferences?.[snapshot.game.current_player_id??0];setHintsEnabled(pref?.hints_enabled??false);},[snapshot.game.current_player_id]);
+  const recordingDetail=recording==='extended'?{recording_level:'extended' as const,...(attempts!==''?{checkout_attempts:Number(attempts)}:{})}:{recording_level:'quick' as const};
   const winner = snapshot.players.find((player) => player.id === snapshot.game.winner_id) ?? null;
   const legStarter = snapshot.players.find((player) => player.id === snapshot.game.leg_starter_id);
   const currentLegVisits = snapshot.visits.filter((visit) => visit.leg_no === snapshot.game.current_leg);
@@ -296,7 +302,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired, on
       setPendingVisit(null); setError('Mecz zmienił się na innym urządzeniu. Sprawdź turę i wpisz wynik ponownie.'); return;
     }
     await withLock(async () => {
-      const next = await api.recordVisit(snapshot.game.id, currentPlayer.id, score, dartsUsed, doubleConfirmed, snapshot.game.revision);
+      const next = await api.recordVisit(snapshot.game.id, currentPlayer.id, score, dartsUsed, doubleConfirmed, snapshot.game.revision,recordingDetail);
       installSnapshot(next);
       setRefereeMessage(describeSnapshot(next));
       setInputValue('');
@@ -305,6 +311,8 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired, on
   };
 
   const beginScore = async (score: number) => {
+    if(recording==='detailed'){setError('W trybie szczegółowym zapisuj rzeczywiste pojedyncze pola.');return;}
+    if(recording==='extended'&&attempts===''){setError('Podaj jawną liczbę prób zakończenia albo wybierz tryb szybki.');return;}
     if (scoringDisabled || busyRef.current || pendingVisit || remainingDialog || !currentPlayer || snapshot.partial_visit) return;
     if (!snapshot.game.aggregate_allowed) { setError('Ten zapis wymaga pojedynczych lotek.'); return; }
     if (!Number.isInteger(score) || score < 0 || score > 180) {
@@ -461,6 +469,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired, on
     }
   };
 
+  if(report)return <main className="match-shell"><MatchReport id={snapshot.game.id} onBack={()=>setReport(false)}/></main>;
   return (
     <main className="match-shell">
       {remainingDialog && <div className="modal-backdrop" role="presentation"><section ref={dialogRef} tabIndex={-1} className="decision-modal" role="dialog" aria-modal="true" aria-label="Potwierdź stan pozostało" onKeyDown={e => { if (e.key === 'Escape' && !e.repeat && !busy) setRemainingDialog(null); if (e.key === 'Enter' && e.repeat) e.preventDefault(); }}>
@@ -470,7 +479,7 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired, on
         {snapshot.game.config.scoring.out === 'double' && remainingDialog.value === 0 && <label><input type="checkbox" checked={remainingDouble} disabled={scoringDisabled} onChange={e => setRemainingDouble(e.target.checked)} /> Potwierdzam zakończenie ostatnią lotką na double</label>}
         {remainingDialog.value === currentPlayer?.remaining && <label><input type="checkbox" checked={zeroConfirmed} disabled={scoringDisabled} onChange={e => setZeroConfirmed(e.target.checked)} /> To była rzeczywista wizyta za 0 punktów. Bust wpiszę jako sumę albo pola.</label>}
         <div className="secondary-controls"><button type="button" className="button button-primary" disabled={scoringDisabled || remainingDialog.revision !== snapshot.game.revision} onClick={() => runCommand(async () => {
-          const next = await api.remaining(snapshot.game.id,currentPlayer!.id,remainingDialog.value,remainingDarts,remainingDouble,zeroConfirmed,remainingDialog.revision); setRemainingDialog(null); return next;
+          const next = await api.remaining(snapshot.game.id,currentPlayer!.id,remainingDialog.value,remainingDarts,remainingDouble,zeroConfirmed,remainingDialog.revision,recordingDetail); setRemainingDialog(null); return next;
         })}>Zatwierdź stan po wizycie</button><button type="button" className="button button-secondary" disabled={busy} onClick={() => setRemainingDialog(null)}>Anuluj</button></div>
       </section></div>}
       {pendingVisit && (
@@ -558,11 +567,14 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired, on
       </section>
 
       <section className="match-controls">
+        <label>Poziom zapisu<select value={recording} disabled={writesDisabled} onChange={e=>{setRecording(e.target.value as typeof recording);setAttempts('');}}><option value="quick">Szybki — suma i dane wymagane przez reguły</option><option value="extended">Rozszerzony — jawna liczba prób checkoutu</option><option value="detailed">Szczegółowy — rzeczywiste pola i opcjonalny cel</option></select></label>
+        {recording==='extended'&&<label>Zadeklarowane próby checkoutu w tej wizycie<input type="number" min={0} max={3} value={attempts} onChange={e=>setAttempts(e.target.value)} placeholder="Nieznane — wybierz szybki zapis"/></label>}
+        {recording==='detailed'&&<p>Wybierz rzeczywiste pola poniżej; cel i próba są opcjonalnymi deklaracjami.</p>}
         {snapshot.game.status === 'active' && currentPlayer && snapshot.game.aggregate_allowed ? (
           <>
             <div className="turn-caption"><span className="live-dot" /> Rzuca <strong>{currentPlayer?.name}</strong></div>
             <ScoreEntry inputRef={inputRef} value={inputValue} onChange={setInputValue} mode={entryMode} onMode={setEntryMode} remaining={currentPlayer.remaining}
-              disabled={scoringDisabled || pendingVisit !== null || remainingDialog !== null || snapshot.partial_visit !== null}
+              disabled={scoringDisabled || recording==='detailed' || pendingVisit !== null || remainingDialog !== null || snapshot.partial_visit !== null}
               onZero={() => { setEntryMode('score'); void beginScore(0); }}
               onSubmit={() => { if (entryMode === 'score') void beginScore(Number(inputValue)); else { setRemainingDialog({ value: Number(inputValue), revision: snapshot.game.revision }); setRemainingDarts(3); setRemainingDouble(false); setZeroConfirmed(false); } }} />
           </>
@@ -590,7 +602,9 @@ export default function DartGame({ initialSnapshot, onExit, onSessionExpired, on
       </section>
       <CheckoutPanel snapshot={snapshot} enabled={hintsEnabled} setEnabled={setHintsEnabled} />
       <MatchManagement snapshot={snapshot} disabled={writesDisabled} run={runCommand} onRematch={onRematch} />
-      <DartControls snapshot={snapshot} disabled={writesDisabled} run={runCommand} />
+      <button className="button button-secondary" onClick={()=>setReport(true)}>Raport i analiza tego meczu</button>
+      <MatchMetadata snapshot={snapshot} disabled={writesDisabled} run={runCommand}/>
+      <DartControls snapshot={snapshot} disabled={writesDisabled} run={runCommand} detailed={recording==='detailed'} />
       <HistoryCorrection snapshot={snapshot} disabled={writesDisabled} run={runCommand} />
       <section className="panel"><h2>Wygrane legi — hold / break</h2><ul>{snapshot.leg_results.map(l => <li key={l.leg_no}>Leg {l.leg_no}, set {l.set_no}: {snapshot.players.find(p => p.id === l.winner_id)?.name} · {l.kind === 'hold' ? 'hold — utrzymane rozpoczęcie' : l.kind === 'break' ? 'break — przełamanie' : 'starter nieznany'}; zaczynał {snapshot.players.find(p => p.id === l.starter_id)?.name ?? 'nieznany'}</li>)}</ul></section>
       <Devices gameId={snapshot.game.id} />

@@ -146,7 +146,7 @@ try {
   pass('interruption excludes actual projections from global stats; surrender retains only actual points, without awarded legs');
 
   small=cfg();small.match.target=1;g=await create(small);g=await hit(g,'D1');assert.equal(g.game.operation_state,'resolved');g=await state(g,'result-confirm',{reason:'Wynik sprawdzony'});
-  reject(await command('player-delete',{player_id:p1.id}),409,'result-locked');
+  reject(await command('player-delete',{player_id:p1.id}),409,'player-delete-disabled');
   reject(await request('history-preview',{game_id:g.game.id,expected_revision:g.game.revision,kind:'dart',dart_id:g.darts[0].id,field:'MISS',reason:'Korekta',withdraw_dependent:false}),409,'result-locked');
   g=await state(g,'result-reopen',{reason:'Błąd końcowej lotki'});const fixed={kind:'dart',dart_id:g.darts[0].id,field:'MISS'};p=await preview(g,fixed);g=ok(await request('history-apply',correctionBody(g,fixed,p)));assert.equal(g.game.status,'active');assert.equal(g.game.confirmed_at,null);
   pass('normal result awaits confirmation; reopen then correction invalidates prior approval');
