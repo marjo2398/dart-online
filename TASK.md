@@ -1,3 +1,18 @@
+# Bieżące zadanie — współpraca z natywnym offline,29.10.2026
+
+- [x] Zachowano WWW etapy1–3 i istniejące ID/historię, etap4 anulowany.
+- [x] Wersjonowany kontrakt zasad,39 niezależnie określonych wspólnych scenariuszy Kotlin/PHP.
+- [x] Schema7, jawna autoryzacja natywna PIN-em i rozpoznanie kontraktu; import z walidacją/replay i jednym właścicielem, idempotencja/rollback, mapy osób/konflikt rewizji/archiwizacja bez automatycznego scalania nazw.
+- [x] Natywny kod operatora/kamery/widza używa istniejącego API; role i decyzja operatora zachowane. Brak wideo, LAN, fuzji i oddzielnych tarcz.
+- [x] Rzeczywisty test klienta APK→PHP/SQLite→drugi klient, retry/utrata ACK/restart, brak duplikatów i nadpisania profilu, migracje ze starszych wersji, regresje WWW, lint/build.
+- [x] Dokumentacja API/synchronizacji, architektury/spec/roadmap i ograniczeń.
+- [ ] Wdrożenie nowego API wymaga osobnego polecenia. W tym zadaniu nie wykonywać deploy/push/merge ani zmian danych produkcji.
+- [ ] Próby rzeczywistych telefonów/kamery według ../dart-lens/docs/DEVICE_TESTS.md; hardware_verified=false.
+
+Historia ukończonych etapów poniżej pozostaje zachowana.
+
+---
+
 # Etap 3 WWW — profile, historia i analiza, 29.10.2026
 
 - [x] Definicje metrics v1 przed obliczeniami/testami; jawna kompletność, faktyczne mianowniki i zasady statusów.

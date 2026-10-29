@@ -91,7 +91,15 @@ function saveProfile(PDO $pdo, array $b): array
     $v=profileValues($b);
     if (sqlOne($pdo,'SELECT id FROM players WHERE name=? COLLATE NOCASE AND id<>?',[$v[0],$id])) { problem(409,'player-name-exists','Ta nazwa już istnieje. Nie łączymy profili automatycznie.'); }
     $pdo->prepare('UPDATE players SET name=?,nickname=?,club=?,throwing_hand=?,notes=?,preferred_double=?,hints_enabled=?,is_guest=?,profile_revision=profile_revision+1 WHERE id=?')->execute(array_merge($v,[$id]));
+    if (array_key_exists('archived',$b)) { $pdo->prepare('UPDATE players SET archived=? WHERE id=?')->execute([(int)requiredBool($b,'archived'),$id]); }
     return normalizePlayer(profileRow($pdo,$id));
+}
+
+function createProfile(PDO $pdo, array $b): array
+{
+    $v=profileValues($b); $p=createPlayer($pdo,['name'=>$v[0],'is_guest'=>(bool)($b['is_guest']??false)]);
+    $pdo->prepare('UPDATE players SET name=?,nickname=?,club=?,throwing_hand=?,notes=?,preferred_double=?,hints_enabled=?,is_guest=? WHERE id=?')->execute(array_merge($v,[$p['id']]));
+    return normalizePlayer(profileRow($pdo,$p['id']));
 }
 
 function archiveProfile(PDO $pdo, array $b): array

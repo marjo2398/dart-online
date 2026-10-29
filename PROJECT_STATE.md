@@ -1,3 +1,17 @@
+# Rozszerzenie APK offline — 29.10.2026, wyłącznie lokalnie
+
+Zachowano ukończone WWW etapy1–3 (bazowy commit2a03c9c); etap4 organizacji rozgrywek anulowany. Priorytetem jest natywne APK1.1.0/code12 z samodzielną grą offline. [Mapa WWW→APK](../dart-lens/docs/OFFLINE_PLAY.md), [kontrakt synchronizacji](docs/OFFLINE_SYNC.md).
+
+Dodano API/schema7: app-authorize (jawny PIN i native_admin, stare granty bez rozszerzenia), sync-capabilities, atomowy/idempotentny local-game-import przez istniejący silnik/runCommand/audyt, trwałe mapy osób i konflikt rewizji, pełne profile-create oraz jawne archived w profile-save. Replay zachowuje faktyczne pola/adnotacje/datę wizyt i zakończenia, porównuje stan telefonu, nie wymyśla lotek z sum. Jeden origin/local match = jeden serwerowy game_id i statystyki. Phone local→transferring→potwierdzone online/archive; serwer prowadzi dalszy wspólny mecz.
+
+Weryfikacja:39 ręcznie określonych wspólnych scenariuszy zasad PHP i Kotlin PASS; rzeczywisty klient APK/HTTP/PHP8.5.12/SQLite→drugi klient, utracone ACK i restart importu, rollback błędu ostatniego INSERT/retry, jedna kopia, role widza/kamery403, propozycja→operator→wynik, utrata/odnowienie dostępu bez podwójnego rzutu, stara propozycja po zmianie kontekstu, konflikt profilu/archiwizacja i zachowanie dat PASS. Migracje dawnych baz do7, w tym v6 z2a03c9c, zachowują stare dane/ID/poświadczenia/granty/komendy; powtórzenie i wstrzyknięty rollback PASS. Regresje API19/19, formaty13, operacje12, analiza9, klient WWW9; TypeScript i Vite PASS. Bez nowego testu skali, benchmarku hostingu i prób urządzeń.
+
+Nie zmieniono produkcyjnej konfiguracji, PIN-u, bazy ani TLS. Nie wdrożono nowych modułów, nie wykonano push/merge. Lokalna gałąź pozostaje feature/apk-integration-20261025. Nowe online wymaga osobno autoryzowanego wdrożenia schema7 na https://dartlens.host749284.xce.pl/; lokalny test nie dowodzi działania produkcji. Stare MySQL i /dart/ nie są celem wdrożenia. PHP7.4 i Androida nie wykonywano jako środowisk serwera/sprzętu. Limit importu3000 operacji/2MiB opisano jawnie; nie ogranicza samej lokalnej gry.
+
+Poniżej historia etapów WWW i wcześniejszej konsolidacji.
+
+---
+
 # Dart Online — stan 29.10.2026
 
 ## Etap 3 WWW — wykonany lokalnie, bez wdrożenia

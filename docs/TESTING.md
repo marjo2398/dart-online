@@ -1,3 +1,15 @@
+# APK offline / import — 29.10.2026, nowe lokalne fixture
+
+- `backendtests/rules-contract.php`:39 wspólnych ręcznie określonych przypadków config/komend/stanu/błędów; ten sam JSON uruchamia Kotlin. Bez generowania oczekiwań z silnika i bez konfiguracji/sekretów produkcji.
+- Android `OfflinePhpIntegrationTest`: wykonany, nie pominięty; rzeczywisty OnlineApi i odizolowany PHP8.5.12/SQLite na127.0.0.1. Lokalna częściowa wizyta/korekta→import→drugi klient; utrata ACK/reopen/retry, jedna gra/właściciel/statystyki; błąd ostatniego INSERT cofa całość i ponowienie działa; sumy bez fikcyjnych pól/prób, daty źródła; widz/kamera403, propozycja i decyzja operatora, wygasły dostęp/ten sam rzut, stary kontekst, konflikt profilu/archiwizacja. Nie jest to próba urządzenia ani aparatu.
+- `migration-offline.mjs`: rzeczywisty kod/schema6 z2a03c9c→7, wszystkie stare wartości/ID/poświadczenia/role/oczekująca komenda zachowane, brak automatycznego admina, powtórzenie/no-op i wymuszony rollback/FK/integralność PASS. Starsze migracje v3/v4/v5 do7 również PASS; nowe additive kolumny pomijane tylko przy porównaniu starego zestawu pól.
+- Regresje integration19/19, formats13 grup, operations12, analysis9 i web-client9 PASS. TypeScript/Vite oraz składnia PHP8.5 PASS. Nie powtarzano niezmienionego analysis-scale, testów sprzętu ani produkcyjnego przebiegu.
+- Dowody natywnego release/SQLite i ograniczenia sprzętowe: ../dart-lens/PROJECT_STATE.md oraz docs/DEVICE_TESTS.md po stronie Androida. Wersja PHP7.4 nie była osobno uruchomiona; nowe moduły nie wymagają typu mixed ani catch bez zmiennej.
+
+Wszystkie nowe bazy i procesy HTTP są odrębne od danych użytkownika/produkcji. Brak deploy/push/merge. Poniżej zachowane wcześniejsze wyniki etapów1–3; nie traktować ich jako nowego testu produkcyjnego.
+
+---
+
 # Weryfikacja WWW — etapy 1–3
 
 

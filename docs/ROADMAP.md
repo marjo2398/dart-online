@@ -1,3 +1,9 @@
+# Priorytet APK — stan 29.10.2026
+
+Etapy1–3 WWW ukończone według użytkownika; etap4 anulowany. Zlecono i lokalnie wdrożono trzy części: natywna gra offline z trwałym zapisem; synchronizacja i wspólna online przez schema7; sprawdzenie aktualizacji i APK1.1.0. Zakres jest opisany w [OFFLINE_SYNC](OFFLINE_SYNC.md) i [mapie APK](../../dart-lens/docs/OFFLINE_PLAY.md). Bez automatycznego deploy/push/merge. Dalsza brama: ręczna instalacja aktualizacji, próby urządzeń i osobno zatwierdzone wdrożenie nowego API. Poniższe zapisy etapów są historią ich realizacji.
+
+---
+
 # Rozwój WWW
 
 ## Etap 3 — wykonany lokalnie 29.10.2026

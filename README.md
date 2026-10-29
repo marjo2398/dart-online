@@ -1,3 +1,11 @@
+# Dart Online i Dart Lens offline — aktualizacja29.10.2026
+
+WWW etapy1–3 zachowane; etap4 organizacji rozgrywek anulowany. Nowe natywne APK1.1.0 prowadzi także samodzielne mecze offline. Udostępnienie online korzysta z nowego API/schema7, jawnego PIN-u/roli, idempotentnego replay i jednego serwerowego właściciela. [Kontrakt](docs/OFFLINE_SYNC.md) · [instrukcja APK](../dart-lens/docs/ONLINE_QUICK_START.md).
+
+Zmiany pozostają lokalne. Nie wykonano wdrożenia, push/merge ani zmian produkcyjnych. Poniższy opis WWW zachowuje dotychczasowy zakres etapów1–3.
+
+---
+
 # Dart Online
 
 Dart Online to samodzielny system sędziowski dla dwóch zawodników. Frontend jest statyczną aplikacją React/Vite, a produkcyjne API działa na PHP 7.4+ i SQLite — bez serwera Node.js, płatnego AI i usług zewnętrznych.

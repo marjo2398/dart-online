@@ -25,7 +25,7 @@ ${dump}file_put_contents(__DIR__.'/before.json',json_encode(dumpData($p),JSON_TH
 file_put_contents(__DIR__.'/sequence.json',json_encode($p->query('SELECT name,seq FROM sqlite_sequence ORDER BY name')->fetchAll(),JSON_THROW_ON_ERROR));`);
 execFileSync(php,[...args,join(scratch,'seed.php')]);
 const rollback=join(scratch,'rollback');mkdirSync(join(rollback,'data'),{recursive:true});cpSync(join(api,'data/dart-online.sqlite'),join(rollback,'data/dart-online.sqlite'));
-for(const dest of [api,rollback])for(const name of ['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php'])cpSync(join(repo,'public/api',name),join(dest,name));
+for(const dest of [api,rollback])for(const name of ['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php','offline.php'])cpSync(join(repo,'public/api',name),join(dest,name));
 writeFileSync(join(scratch,'rollback.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/rollback/index.php';$p=openDatabase();$p->exec('CREATE TABLE record_versions(collision TEXT)');$failed=false;try{migrateDatabase($p);}catch(Throwable $e){$failed=true;}
 if(!$failed || columnExists($p,'games','confirmed_at') || columnExists($p,'visits','active') || $p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn()!=4 || $p->query('PRAGMA foreign_keys')->fetchColumn()!=1)throw new Exception('Partial failed migration');echo 'rollback ok';`);
 assert.equal(execFileSync(php,[...args,join(scratch,'rollback.php')],{encoding:'utf8'}),'rollback ok');
@@ -33,7 +33,7 @@ writeFileSync(join(scratch,'verify.php'),`<?php define('DART_API_LIBRARY_ONLY',t
 foreach($all['games'] as &$row){unset($row['is_paused'],$row['decision_json'],$row['confirmed_at'],$row['stats_eligible']);}unset($row);
 foreach($all['visits'] as &$row){if($row['active']!=1)throw new Exception('Old visit inactive');unset($row['active'],$row['double_confirmed'],$row['input_mode']);}unset($row);
 foreach($all['audit'] as &$row){unset($row['actor_context'],$row['details_json']);}unset($row);
-foreach(['devices','device_codes'] as $t){foreach($all[$t] as &$row){unset($row['permissions_json']);}unset($row);}
+foreach(['devices','device_codes'] as $t){foreach($all[$t] as &$row){unset($row['permissions_json'],$row['native_admin']);}unset($row);}
 file_put_contents(__DIR__.'/after.json',json_encode($all,JSON_THROW_ON_ERROR));
 if($p->query('PRAGMA foreign_keys')->fetchColumn()!=1 || $p->query('PRAGMA foreign_key_check')->fetchAll()!==[] || $p->query('PRAGMA integrity_check')->fetchColumn()!=='ok')throw new Exception('Integrity');
 if($p->query("SELECT name,seq FROM sqlite_sequence WHERE name IN ('games','visits') ORDER BY name")->fetchAll()!==array_values(array_filter(json_decode(file_get_contents(__DIR__.'/sequence.json'),true),static fn($r)=>in_array($r['name'],['games','visits']))))throw new Exception('ID sequence changed');

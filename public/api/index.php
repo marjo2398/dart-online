@@ -13,6 +13,7 @@ require_once __DIR__ . '/formats.php';
 require_once __DIR__ . '/operations.php';
 require_once __DIR__ . '/profiles.php';
 require_once __DIR__ . '/analysis.php';
+require_once __DIR__ . '/offline.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
@@ -72,16 +73,17 @@ function readJsonBody(): array
         problem(415, 'content-type-required', 'Wyślij dane jako application/json.');
     }
 
+    $bodyLimit = (($_GET['action'] ?? '') === 'local-game-import') ? 2 * 1024 * 1024 : API_MAX_BODY_BYTES;
     $length = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
-    if ($length > API_MAX_BODY_BYTES) {
+    if ($length > $bodyLimit) {
         problem(413, 'body-too-large', 'Przesłane dane są zbyt duże.');
     }
 
-    $raw = file_get_contents('php://input');
+    $raw = file_get_contents('php://input', false, null, 0, $bodyLimit + 1);
     if ($raw === false || trim($raw) === '') {
         return [];
     }
-    if (strlen($raw) > API_MAX_BODY_BYTES) {
+    if (strlen($raw) > $bodyLimit) {
         problem(413, 'body-too-large', 'Przesłane dane są zbyt duże.');
     }
 
@@ -249,7 +251,7 @@ function migrateDatabase(PDO $pdo): void
     if (tableExists($pdo, 'schema_meta') && (int) $pdo->query("SELECT value FROM schema_meta WHERE key = 'schema_version'")->fetchColumn() >= 3) {
         migrateFormats($pdo);
         migrateOperations($pdo);
-        migrateProfiles($pdo);
+        migrateProfiles($pdo); migrateOffline($pdo);
         return;
     }
     transaction($pdo, static function () use ($pdo): void {
@@ -361,7 +363,7 @@ function migrateDatabase(PDO $pdo): void
     });
     migrateFormats($pdo);
     migrateOperations($pdo);
-    migrateProfiles($pdo);
+    migrateProfiles($pdo); migrateOffline($pdo);
 }
 
 function migrateLegacyThrows(PDO $pdo): void
@@ -986,6 +988,8 @@ function deleteGame(PDO $pdo, int $gameId): array
 
 if (defined('DART_API_LIBRARY_ONLY')) { return; }
 
+if (PHP_SAPI === 'cli' && defined('DART_RULES_LIBRARY_ONLY')) { return; }
+
 try {
     $configuration = loadConfiguration();
     if (($configuration['secure_cookie'] ?? true) && strtolower((string) ($_SERVER['HTTPS'] ?? '')) !== 'on' && (int) ($_SERVER['SERVER_PORT'] ?? 0) !== 443) {
@@ -1006,6 +1010,7 @@ try {
         requireMethod('POST');
         sendData(login($database, $configuration));
     }
+    if ($action === 'app-authorize') { requireMethod('POST'); sendData(authorizeNative($database, $configuration, readJsonBody())); }
     if ($action === 'device-join') {
         requireMethod('POST');
         sendData(joinDevice($database, readJsonBody()));
@@ -1024,6 +1029,7 @@ try {
     if (in_array($action,['profiles','profile','analysis','match-analysis','history-search','analysis-export'],true)) {
         requireMethod('GET'); assertProfileAdmin($actor); handleAnalysisRead($database,$action,$_GET);
     }
+    if ($action === 'sync-capabilities') { requireMethod('GET'); sendData(['rules_contract'=>LOCAL_RULES_CONTRACT,'formats'=>1,'operations'=>2,'schema'=>7]); }
     if ($action === 'dashboard') {
         requireMethod('GET');
         $data = getDashboard($database);

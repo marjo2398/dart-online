@@ -82,7 +82,7 @@ try {
   }
   const session = ok(await request('login',{password:secret})); admin.csrf=session.csrf_token;
   assert.equal(sql(`echo json_encode($p->query('SELECT id,game_id,player_id,declared_score,applied_score,darts_used FROM visits')->fetchAll(PDO::FETCH_ASSOC));`),original);
-  assert.equal(sql(`echo $p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn();`),'6');
+  assert.equal(sql(`echo $p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn();`),'7');
   let legacy = await game(1); assert.equal(legacy.players[0].remaining,241); assert.equal(legacy.darts.length,0); assert.equal(legacy.visits[0].mode,'aggregate');
   pass('v2 migration preserves ids, visits and stats without inventing darts');
   const baseDashboard=ok(await request('dashboard')); p1=baseDashboard.players[0];p2=baseDashboard.players[1];

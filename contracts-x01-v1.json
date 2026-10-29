@@ -1,0 +1,1299 @@
+{
+  "contract": "dart-lens-x01/1",
+  "cases": [
+    {
+      "name": "partial-visit",
+      "score": 301,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "T20"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          241,
+          301
+        ],
+        "darts": [
+          1,
+          0
+        ],
+        "current": 1,
+        "leg": 1,
+        "phase": "regular",
+        "sets": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "name": "three-misses",
+      "score": 40,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "MISS"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "MISS"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "MISS"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          40,
+          40
+        ],
+        "darts": [
+          3,
+          0
+        ],
+        "current": 2,
+        "leg": 1
+      }
+    },
+    {
+      "name": "bust-whole-visit",
+      "score": 32,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S20"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S20"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          32,
+          32
+        ],
+        "darts": [
+          2,
+          0
+        ],
+        "current": 2
+      }
+    },
+    {
+      "name": "illegal-double-out",
+      "score": 20,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S20"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          20,
+          20
+        ],
+        "darts": [
+          1,
+          0
+        ],
+        "current": 2
+      }
+    },
+    {
+      "name": "checkout",
+      "score": 20,
+      "target": 1,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D10"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          0,
+          20
+        ],
+        "winner": 1,
+        "current": null,
+        "phase": "finished",
+        "legs": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "name": "double-in",
+      "score": 40,
+      "target": 1,
+      "in": "double",
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S20"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D10"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D10"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          0,
+          40
+        ],
+        "darts": [
+          3,
+          0
+        ],
+        "winner": 1
+      }
+    },
+    {
+      "name": "master-out",
+      "score": 30,
+      "target": 1,
+      "out": "master",
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "T10"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          0,
+          30
+        ],
+        "winner": 1,
+        "phase": "finished"
+      }
+    },
+    {
+      "name": "fixed-draw",
+      "score": 2,
+      "target": 2,
+      "unit": "fixed",
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        }
+      ],
+      "expected": {
+        "legs": [
+          1,
+          1
+        ],
+        "winner": null,
+        "phase": "finished",
+        "current": null,
+        "starter": 2
+      }
+    },
+    {
+      "name": "sets-final-set",
+      "score": 2,
+      "target": 2,
+      "unit": "sets",
+      "legs_per_set": 1,
+      "final_set": {
+        "win_by_two": false,
+        "extra_pairs": null,
+        "target": 2
+      },
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        }
+      ],
+      "expected": {
+        "sets": [
+          1,
+          1
+        ],
+        "leg": 3,
+        "set": 3,
+        "phase": "regular",
+        "current": 1
+      }
+    },
+    {
+      "name": "bull-decider",
+      "score": 2,
+      "target": 2,
+      "decider": "bull_off",
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        }
+      ],
+      "expected": {
+        "legs": [
+          1,
+          1
+        ],
+        "leg": 3,
+        "phase": "awaiting_starter",
+        "current": null,
+        "starter": null
+      }
+    },
+    {
+      "name": "bull-selection",
+      "score": 2,
+      "target": 2,
+      "decider": "bull_off",
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "starter-select",
+          "body": {
+            "player_id": 2
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        }
+      ],
+      "expected": {
+        "legs": [
+          1,
+          2
+        ],
+        "winner": 2,
+        "phase": "finished",
+        "starter": 2
+      }
+    },
+    {
+      "name": "zero-sum",
+      "score": 40,
+      "steps": [
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 0,
+            "darts_used": 3,
+            "double_confirmed": false
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          40,
+          40
+        ],
+        "darts": [
+          3,
+          0
+        ],
+        "current": 2
+      }
+    },
+    {
+      "name": "pause-partial-resume-undo",
+      "score": 40,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S1"
+          }
+        },
+        {
+          "action": "game-pause",
+          "body": {}
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S1"
+          },
+          "error": "game-paused"
+        },
+        {
+          "action": "game-resume",
+          "body": {}
+        },
+        {
+          "action": "visit-undo",
+          "body": {}
+        }
+      ],
+      "expected": {
+        "scores": [
+          40,
+          40
+        ],
+        "darts": [
+          0,
+          0
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "impossible-score",
+      "score": 301,
+      "steps": [
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 179,
+            "darts_used": 3,
+            "double_confirmed": false
+          },
+          "error": "impossible-visit-score"
+        }
+      ],
+      "expected": {
+        "scores": [
+          301,
+          301
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "partial-aggregate-rejected",
+      "score": 301,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S20"
+          }
+        },
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 60,
+            "darts_used": 3,
+            "double_confirmed": false
+          },
+          "error": "partial-visit-exists"
+        }
+      ],
+      "expected": {
+        "scores": [
+          281,
+          301
+        ],
+        "darts": [
+          1,
+          0
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "unchanged-remaining-needs-confirmation",
+      "score": 40,
+      "steps": [
+        {
+          "action": "remaining-create",
+          "body": {
+            "player_id": 1,
+            "remaining": 40,
+            "darts_used": 3,
+            "double_confirmed": false
+          },
+          "error": "ambiguous-remaining"
+        },
+        {
+          "action": "remaining-create",
+          "body": {
+            "player_id": 1,
+            "remaining": 40,
+            "darts_used": 3,
+            "double_confirmed": false,
+            "zero_visit_confirmed": true
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          40,
+          40
+        ],
+        "current": 2
+      }
+    },
+    {
+      "name": "advantage",
+      "score": 2,
+      "target": 2,
+      "deciding": {
+        "win_by_two": true,
+        "extra_pairs": null
+      },
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        }
+      ],
+      "expected": {
+        "legs": [
+          1,
+          1
+        ],
+        "phase": "advantage",
+        "current": 1
+      }
+    },
+    {
+      "name": "sudden-death",
+      "score": 2,
+      "target": 2,
+      "deciding": {
+        "win_by_two": true,
+        "extra_pairs": 0
+      },
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        }
+      ],
+      "expected": {
+        "legs": [
+          1,
+          1
+        ],
+        "phase": "sudden_death",
+        "current": 1
+      }
+    },
+    {
+      "name": "normal-aggregate-needs-three-darts",
+      "score": 301,
+      "steps": [
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 20,
+            "darts_used": 1,
+            "double_confirmed": false
+          },
+          "error": "invalid-darts-used"
+        }
+      ],
+      "expected": {
+        "scores": [
+          301,
+          301
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "impossible-double-checkout",
+      "score": 60,
+      "steps": [
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 60,
+            "darts_used": 1,
+            "double_confirmed": true
+          },
+          "error": "impossible-checkout"
+        }
+      ],
+      "expected": {
+        "scores": [
+          60,
+          60
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "master-out-requires-fields",
+      "score": 60,
+      "out": "master",
+      "steps": [
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 60,
+            "darts_used": 1,
+            "double_confirmed": false
+          },
+          "error": "individual-darts-required"
+        }
+      ],
+      "expected": {
+        "scores": [
+          60,
+          60
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "double-in-requires-fields",
+      "score": 60,
+      "in": "double",
+      "steps": [
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 60,
+            "darts_used": 3,
+            "double_confirmed": false
+          },
+          "error": "individual-darts-required"
+        }
+      ],
+      "expected": {
+        "scores": [
+          60,
+          60
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "master-in-and-checkout",
+      "score": 40,
+      "in": "master",
+      "target": 1,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S10"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "T10"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D5"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          0,
+          40
+        ],
+        "darts": [
+          3,
+          0
+        ],
+        "winner": 1,
+        "phase": "finished"
+      }
+    },
+    {
+      "name": "straight-out-single",
+      "score": 32,
+      "out": "straight",
+      "target": 1,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S20"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S12"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          0,
+          32
+        ],
+        "darts": [
+          2,
+          0
+        ],
+        "winner": 1
+      }
+    },
+    {
+      "name": "leave-one-is-bust",
+      "score": 40,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "T13"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          40,
+          40
+        ],
+        "darts": [
+          1,
+          0
+        ],
+        "current": 2
+      }
+    },
+    {
+      "name": "wrong-player-does-not-write",
+      "score": 301,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "S20"
+          },
+          "error": "wrong-player-turn"
+        }
+      ],
+      "expected": {
+        "scores": [
+          301,
+          301
+        ],
+        "darts": [
+          0,
+          0
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "partial-administrative-reopen",
+      "score": 40,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S1"
+          }
+        },
+        {
+          "action": "game-adjudicate",
+          "body": {
+            "kind": "interrupted",
+            "reason": "Przerwanie"
+          }
+        },
+        {
+          "action": "result-confirm",
+          "body": {
+            "reason": "Sprawdzono"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S1"
+          },
+          "error": "result-locked"
+        },
+        {
+          "action": "result-reopen",
+          "body": {
+            "reason": "Kontynuacja"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          39,
+          40
+        ],
+        "current": 1,
+        "status": "active",
+        "confirmed": false
+      }
+    },
+    {
+      "name": "confirmed-checkout-reopen-undo",
+      "score": 20,
+      "target": 1,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D10"
+          }
+        },
+        {
+          "action": "result-confirm",
+          "body": {
+            "reason": "Sprawdzono"
+          }
+        },
+        {
+          "action": "result-confirm",
+          "body": {
+            "reason": "Powtorzenie"
+          },
+          "error": "invalid-phase"
+        },
+        {
+          "action": "visit-undo",
+          "body": {},
+          "error": "result-locked"
+        },
+        {
+          "action": "result-reopen",
+          "body": {
+            "reason": "Korekta"
+          }
+        },
+        {
+          "action": "visit-undo",
+          "body": {}
+        }
+      ],
+      "expected": {
+        "scores": [
+          20,
+          20
+        ],
+        "current": 1,
+        "winner": null,
+        "status": "active",
+        "confirmed": false
+      }
+    },
+    {
+      "name": "cancelled-cannot-award-winner",
+      "score": 40,
+      "steps": [
+        {
+          "action": "game-adjudicate",
+          "body": {
+            "kind": "cancelled",
+            "winner_id": 1,
+            "reason": "Nieprawidlowe"
+          },
+          "error": "invalid-award"
+        }
+      ],
+      "expected": {
+        "status": "active",
+        "current": 1
+      }
+    },
+    {
+      "name": "invalid-administrative-award",
+      "score": 40,
+      "steps": [
+        {
+          "action": "game-adjudicate",
+          "body": {
+            "kind": "walkover",
+            "winner_id": 1,
+            "award": {
+              "player1": 0,
+              "player2": 1
+            },
+            "reason": "Nieprawidlowy wynik"
+          },
+          "error": "invalid-award"
+        }
+      ],
+      "expected": {
+        "status": "active",
+        "current": 1
+      }
+    },
+    {
+      "name": "walkover-confirmed",
+      "score": 40,
+      "steps": [
+        {
+          "action": "game-adjudicate",
+          "body": {
+            "kind": "walkover",
+            "winner_id": 2,
+            "award": {
+              "player1": 0,
+              "player2": 2
+            },
+            "reason": "Nieobecnosc"
+          }
+        },
+        {
+          "action": "result-confirm",
+          "body": {
+            "reason": "Sprawdzono"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          40,
+          40
+        ],
+        "winner": 2,
+        "status": "finished",
+        "confirmed": true,
+        "phase": "finished"
+      }
+    },
+    {
+      "name": "final-set-complete",
+      "score": 2,
+      "target": 2,
+      "unit": "sets",
+      "legs_per_set": 1,
+      "final_set": {
+        "win_by_two": false,
+        "extra_pairs": null,
+        "target": 2
+      },
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        }
+      ],
+      "expected": {
+        "legs": [
+          3,
+          2
+        ],
+        "sets": [
+          2,
+          1
+        ],
+        "leg": 5,
+        "set": 3,
+        "winner": 1,
+        "phase": "finished"
+      }
+    },
+    {
+      "name": "extended-sum-preserves-unknown-fields",
+      "score": 40,
+      "target": 1,
+      "steps": [
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 40,
+            "darts_used": 1,
+            "double_confirmed": true,
+            "recording_level": "extended",
+            "checkout_attempts": 1
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          0,
+          40
+        ],
+        "darts": [
+          1,
+          0
+        ],
+        "winner": 1
+      }
+    },
+    {
+      "name": "aggregate-history-correction",
+      "score": 301,
+      "steps": [
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 60,
+            "darts_used": 3,
+            "double_confirmed": false
+          }
+        },
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 2,
+            "score": 20,
+            "darts_used": 3,
+            "double_confirmed": false
+          }
+        },
+        {
+          "action": "history-correct",
+          "body": {
+            "kind": "visit",
+            "visit_id": 1,
+            "score": 40,
+            "darts_used": 3,
+            "double_confirmed": false,
+            "reason": "Sprawdzenie",
+            "withdraw_dependent": false
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          261,
+          281
+        ],
+        "darts": [
+          3,
+          3
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "double-in-bust-restores-unopened",
+      "score": 60,
+      "in": "double",
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D20"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S20"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "MISS"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "MISS"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "MISS"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "S20"
+          }
+        }
+      ],
+      "expected": {
+        "scores": [
+          60,
+          60
+        ],
+        "darts": [
+          3,
+          3
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "fixed-odd-legs-win",
+      "score": 2,
+      "target": 3,
+      "unit": "fixed",
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 2,
+            "field": "D1"
+          }
+        },
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "D1"
+          }
+        }
+      ],
+      "expected": {
+        "legs": [
+          2,
+          1
+        ],
+        "winner": 1,
+        "phase": "finished"
+      }
+    },
+    {
+      "name": "invalid-field-no-write",
+      "score": 40,
+      "steps": [
+        {
+          "action": "dart-create",
+          "body": {
+            "player_id": 1,
+            "field": "XYZ"
+          },
+          "error": "invalid-field"
+        }
+      ],
+      "expected": {
+        "scores": [
+          40,
+          40
+        ],
+        "darts": [
+          0,
+          0
+        ],
+        "current": 1
+      }
+    },
+    {
+      "name": "reason-must-be-text",
+      "score": 40,
+      "steps": [
+        {
+          "action": "game-adjudicate",
+          "body": {
+            "kind": "interrupted",
+            "reason": 123
+          },
+          "error": "reason-required"
+        }
+      ],
+      "expected": {
+        "scores": [
+          40,
+          40
+        ],
+        "current": 1,
+        "status": "active"
+      }
+    },
+    {
+      "name": "checkout-attempts-cannot-be-zero",
+      "score": 40,
+      "target": 1,
+      "steps": [
+        {
+          "action": "visit-create",
+          "body": {
+            "player_id": 1,
+            "score": 40,
+            "darts_used": 1,
+            "double_confirmed": true,
+            "recording_level": "extended",
+            "checkout_attempts": 0
+          },
+          "error": "invalid-attempts"
+        }
+      ],
+      "expected": {
+        "scores": [
+          40,
+          40
+        ],
+        "darts": [
+          0,
+          0
+        ],
+        "current": 1,
+        "status": "active"
+      }
+    }
+  ]
+}

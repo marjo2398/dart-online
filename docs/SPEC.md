@@ -1,3 +1,9 @@
+# Aktualna decyzja produktu — APK offline, 29.10.2026
+
+WWW etapy1–3 są ukończone według przekazania użytkownika i lokalnego kodu; etap4 (organizacja rozgrywek) anulowano. Natywne APK prowadzi pełną ręczną grę lokalną bez sieci/kamery/parowania. Wspólny mecz online prowadzi wyłącznie serwer; przekazanie jest jawne, autoryzowane i idempotentne. Jedna fizyczna tarcza, opcjonalna wspomagana kamera; bez fuzji i gry między oddzielnymi tarczami. Nie zmieniono istniejącego WWW w celu uproszczenia Androida. [Kontrakt synchronizacji](OFFLINE_SYNC.md), [mapa WWW→APK](../../dart-lens/docs/OFFLINE_PLAY.md). Nowe API wymaga osobnego wdrożenia.
+
+---
+
 # Format meczu — etap 1 WWW
 
 ## Etap 2 — prowadzenie gry, wykonane lokalnie 29.10.2026

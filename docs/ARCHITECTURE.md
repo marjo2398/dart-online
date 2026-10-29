@@ -1,3 +1,11 @@
+# APK offline i atomowy import — 29.10.2026
+
+Telefon ma oddzielny silnik Kotlin zgodny z kontraktem `dart-lens-x01/1` i lokalny transakcyjny SQLite. PHP pozostaje silnikiem wspólnego meczu online; nie jest przenoszone do APK.39 ręcznie określonych scenariuszy uruchamia Kotlin i PHP. `offline.php` dodaje schema7, jawny natywny dostęp PIN i import przez istniejący runCommand/ledger/audyt; nie zastępuje replayFormat/evaluateDarts ani ukończonych etapów WWW.
+
+Unikalny origin/local game, frozen payload i porównanie stanu replay dają jednego właściciela i jeden wynik/statystyki. Tabele profili i identyfikatory serwera zostają. Mapowania są jawne, istniejące profile chroni rewizja, a import nie przydziela ról. Szczegóły: [OFFLINE_SYNC](OFFLINE_SYNC.md). Produkcyjnych sekretów, konfiguracji i danych nie zmieniono.
+
+---
+
 # WWW i serwer wyniku
 
 ## Operacje etapu 2 — schemat v5

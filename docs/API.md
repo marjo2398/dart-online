@@ -1,3 +1,9 @@
+# Rozszerzenie APK offline — 29.10.2026
+
+Bieżący schemat7, format1/operacje2 oraz wersjonowane zasady `dart-lens-x01/1`. Dodano app-authorize, sync-capabilities, local-game-import i profile-create; profile-save zachowuje kontrolę wersji także przy jawnej archiwizacji. Pełny kontrakt, role, retry, daty, atomowe przekazanie właściciela i limity: [OFFLINE_SYNC](OFFLINE_SYNC.md). Istniejące operacje poniżej pozostają aktualne. Nie wdrożono tej zmiany na produkcję.
+
+---
+
 # Dart Online API — formaty v1, operacje v2, metrics v1 (SQLite v6)
 
 ## Prowadzenie gry — etap 2, lokalnie 29.10.2026

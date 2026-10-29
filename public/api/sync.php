@@ -104,7 +104,7 @@ function publicDevice(array $row): array
 {
     return ['id' => $row['id'], 'name' => $row['name'], 'role' => $row['role'],
         'game_id' => $row['game_id'] === null ? null : (int) $row['game_id'],
-        'expires_at' => (int) $row['expires_at'], 'revoked' => (bool) $row['revoked'],
+        'native_admin' => (bool)($row['native_admin'] ?? false), 'expires_at' => (int) $row['expires_at'], 'revoked' => (bool) $row['revoked'],
         'permissions' => ($row['permissions_json'] ?? null)===null ? ($row['role']==='operator'?['score','correct_last']:[]) : json_decode($row['permissions_json'],true,32,JSON_THROW_ON_ERROR)];
 }
 
@@ -166,7 +166,7 @@ function authenticateActor(PDO $pdo): array
         $device = sqlOne($pdo, 'SELECT * FROM devices WHERE token_hash=?', [hash('sha256',$matches[1])]);
         if (!$device || (bool) $device['revoked'] || (int) $device['expires_at'] <= time()) { problem(401,'device-expired','Dostęp urządzenia wygasł lub został odwołany. Sparuj je ponownie.'); }
         if ($device['game_id'] !== null && !sqlOne($pdo,'SELECT id FROM games WHERE id=?',[$device['game_id']])) { problem(403,'game-access-ended','Przypisany mecz został usunięty.'); }
-        return ['actor' => 'device:' . $device['id'], 'role' => $device['role'], 'device' => publicDevice($device)];
+        return ['actor' => 'device:' . $device['id'], 'role' => ((bool)($device['native_admin'] ?? false)?'admin':$device['role']), 'device' => publicDevice($device)];
     }
     requireAuthentication();
     return ['actor' => 'administrator', 'role' => 'admin', 'device' => null];
@@ -180,7 +180,8 @@ function assertScope(array $actor, ?int $gameId): void
 
 function authorizeCommand(PDO $pdo, array $actor, string $action, array $input): void
 {
-    if (in_array($action,['profile-save','profile-archive','profile-merge','equipment-save','game-metadata'],true)) { assertProfileAdmin($actor); }
+    if ($action==='local-game-import') { assertScope($actor,null); if (!in_array($actor['role'],['admin','operator'],true)) problem(403,'operator-required','Wymagany operator.'); }
+    if (in_array($action,['profile-create','profile-save','profile-archive','profile-merge','equipment-save','game-metadata'],true)) { assertProfileAdmin($actor); }
     if (strpos($action,'template-')===0 && ($actor['role']!=='admin' || !supportsFormats())) { problem(403,'admin-required','Szablony edytuje administrator WWW.'); }
     $adminOnly = ['player-delete','game-delete','device-code-create','device-revoke'];
     if (in_array($action,$adminOnly,true) && $actor['role'] !== 'admin') { problem(403,'admin-required','Ta operacja wymaga administratora WWW.'); }
@@ -209,7 +210,7 @@ function bumpGame(PDO $pdo, int $gameId): void
 
 function runCommand(PDO $pdo, string $action, array $body): array
 {
-    $newActions=['profile-save','profile-archive','profile-merge','equipment-save','game-metadata','remaining-create','history-apply','game-pause','game-resume','game-adjudicate','result-confirm','result-reopen','game-rematch'];
+    $newActions=['local-game-import','profile-create','profile-save','profile-archive','profile-merge','equipment-save','game-metadata','remaining-create','history-apply','game-pause','game-resume','game-adjudicate','result-confirm','result-reopen','game-rematch'];
     $known = array_merge($newActions,['template-save','template-delete','starter-select','player-create','player-delete','game-create','game-delete','game-finish','visit-create','visit-undo','visit-correct','dart-create','dart-correct','device-code-create','device-revoke','camera-select','observation-create','observation-review']);
     if (!in_array($action,$known,true)) { problem(404,'unknown-action','Nieznana operacja API.'); }
     $commandId = requiredUuid($body,'command_id');
@@ -261,6 +262,8 @@ function runCommand(PDO $pdo, string $action, array $body): array
 function dispatchCommand(PDO $pdo, array $actor, string $action, array $body): array
 {
     switch ($action) {
+        case 'local-game-import': return importLocalGame($pdo,$actor,$body);
+        case 'profile-create': return createProfile($pdo,$body);
         case 'profile-save': return saveProfile($pdo,$body);
         case 'profile-archive': return archiveProfile($pdo,$body);
         case 'profile-merge': return mergeProfiles($pdo,$body);
