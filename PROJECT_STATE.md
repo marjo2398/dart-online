@@ -1,3 +1,10 @@
+# Publikacja GitHub — 29.10.2026
+
+Na wyraźne polecenie użytkownika wypchnięto feature/apk-integration-20261025 i połączono z main przez fast-forward. Zdalny main zawiera18bb0c4 (kontrakt i bezpieczny import offline), poprzednie etapy1–3 oraz ich historię. Bez force push, resetu i nadpisania cudzych commitów. Gałąź roboczą zachowano. Android również opublikowany w main swojego repo.
+
+Nie uruchomiono wdrożenia produkcji; rozszerzenia API/schema7 nadal wymagają odrębnego zlecenia wdrożenia. Użytkownik potwierdził instalację APK1.1.0 i będzie przekazywał wyniki prób. Nie ma jeszcze potwierdzenia gry na urządzeniu ani produkcyjnej synchronizacji; hardware_verified=false. Poniżej historia wcześniejszego stanu lokalnego i testów.
+
+---
 # Rozszerzenie APK offline — 29.10.2026, wyłącznie lokalnie
 
 Zachowano ukończone WWW etapy1–3 (bazowy commit2a03c9c); etap4 organizacji rozgrywek anulowany. Priorytetem jest natywne APK1.1.0/code12 z samodzielną grą offline. [Mapa WWW→APK](../dart-lens/docs/OFFLINE_PLAY.md), [kontrakt synchronizacji](docs/OFFLINE_SYNC.md).
