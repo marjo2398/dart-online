@@ -61,7 +61,7 @@ function migrateOperations(PDO $pdo): void
 
 function actorPermissions(array $actor): array
 {
-    if ($actor['role']==='admin') { return MATCH_PERMISSIONS; }
+    if (panelManager($actor)) { return MATCH_PERMISSIONS; }
     return $actor['device']['permissions'] ?? [];
 }
 
@@ -108,6 +108,9 @@ function assertOperationsRead(array $g): void
 
 function assertMatchOperation(array $g, string $action, array $body = []): void
 {
+    if (importOrigin($g)['read_only'] && $action!=='game-rematch') {
+        problem(409,'archive-read-only','Archiwum z APK nie zostało udostępnione do prowadzenia. Zachowano historię.');
+    }
     $writes=['visit-create','remaining-create','dart-create','observation-create','starter-select'];
     $accept=$action==='observation-review' && ($body['decision'] ?? '')==='accept';
     $edits=['visit-undo','visit-correct','dart-correct','history-preview','history-apply'];

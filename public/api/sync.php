@@ -148,7 +148,8 @@ function enrichSnapshot(PDO $pdo, array $game, array $snapshot): array
     $snapshot['withdrawn_darts']=sqlRows($pdo,'SELECT * FROM darts WHERE game_id=? AND active=0 ORDER BY visit_no,dart_no,id',[$id]);
     $snapshot['record_versions']=sqlRows($pdo,'SELECT * FROM record_versions WHERE game_id=? ORDER BY id',[$id]);
     $snapshot['result_decisions']=sqlRows($pdo,'SELECT * FROM result_decisions WHERE game_id=? ORDER BY id',[$id]);
-    $snapshot['permissions']=actorPermissions($GLOBALS['snapshotActor'] ?? ['role'=>'viewer','device'=>null]);
+    $snapshot['game']['origin'] = importOrigin($game);
+    $snapshot['permissions']=$snapshot['game']['origin']['read_only'] ? [] : actorPermissions($GLOBALS['snapshotActor'] ?? ['role'=>'viewer','device'=>null]);
     if (columnExists($pdo,'players','merged_into')) {
         $snapshot['game']['context_kind']=$game['context_kind'] ?? null; $snapshot['game']['venue']=$game['venue'] ?? null;
         $snapshot['equipment']=sqlRows($pdo,'SELECT * FROM game_equipment WHERE game_id=?',[$id]);
@@ -161,14 +162,16 @@ function enrichSnapshot(PDO $pdo, array $game, array $snapshot): array
 function authenticateActor(PDO $pdo): array
 {
     $header = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
-    if ($header !== '') {
+    if (isset($_SERVER['HTTP_AUTHORIZATION']) || isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
         if (!preg_match('/^Bearer ([A-Za-z0-9_-]{43})$/D', $header, $matches)) { problem(401,'invalid-device-token','Poświadczenie urządzenia jest nieprawidłowe.'); }
         $device = sqlOne($pdo, 'SELECT * FROM devices WHERE token_hash=?', [hash('sha256',$matches[1])]);
         if (!$device || (bool) $device['revoked'] || (int) $device['expires_at'] <= time()) { problem(401,'device-expired','Dostęp urządzenia wygasł lub został odwołany. Sparuj je ponownie.'); }
         if ($device['game_id'] !== null && !sqlOne($pdo,'SELECT id FROM games WHERE id=?',[$device['game_id']])) { problem(403,'game-access-ended','Przypisany mecz został usunięty.'); }
         return ['actor' => 'device:' . $device['id'], 'role' => ((bool)($device['native_admin'] ?? false)?'admin':$device['role']), 'device' => publicDevice($device)];
     }
-    requireAuthentication();
+    if (($_SERVER['HTTP_X_DART_CLIENT'] ?? '') === 'public-web' || !hasCurrentAuthentication()) {
+        return ['actor'=>'public-web','role'=>'public','device'=>null];
+    }
     return ['actor' => 'administrator', 'role' => 'admin', 'device' => null];
 }
 
@@ -180,13 +183,14 @@ function assertScope(array $actor, ?int $gameId): void
 
 function authorizeCommand(PDO $pdo, array $actor, string $action, array $input): void
 {
+    if ($actor['role']==='public' && !in_array($action,PUBLIC_WEB_COMMANDS,true)) { problem(403,'public-action-denied','Ta operacja wymaga uwierzytelnionego urządzenia.'); }
     if ($action==='local-game-import') { assertScope($actor,null); if (!in_array($actor['role'],['admin','operator'],true)) problem(403,'operator-required','Wymagany operator.'); }
     if (in_array($action,['profile-create','profile-save','profile-archive','profile-merge','equipment-save','game-metadata'],true)) { assertProfileAdmin($actor); }
-    if (strpos($action,'template-')===0 && ($actor['role']!=='admin' || !supportsFormats())) { problem(403,'admin-required','Szablony edytuje administrator WWW.'); }
+    if (strpos($action,'template-')===0 && (!panelManager($actor) || !supportsFormats())) { problem(403,'admin-required','Wymagany dostęp do szablonów.'); }
     $adminOnly = ['player-delete','game-delete','device-code-create','device-revoke'];
-    if (in_array($action,$adminOnly,true) && $actor['role'] !== 'admin') { problem(403,'admin-required','Ta operacja wymaga administratora WWW.'); }
+    if (in_array($action,$adminOnly,true) && !panelManager($actor)) { problem(403,'admin-required','Ta operacja wymaga uprawnień zarządzania.'); }
     if (in_array($action,['player-create','game-create'],true)) {
-        if (!in_array($actor['role'],['admin','operator'],true)) { problem(403,'operator-required','Ta operacja wymaga operatora.'); }
+        if (!in_array($actor['role'],['admin','operator','public'],true)) { problem(403,'operator-required','Ta operacja wymaga operatora.'); }
         assertScope($actor,null);
         if (!in_array('score',actorPermissions($actor),true)) { problem(403,'permission-required','Brak uprawnienia: score.'); }
         return;
@@ -197,7 +201,7 @@ function authorizeCommand(PDO $pdo, array $actor, string $action, array $input):
     }
     if ($action === 'observation-create') {
         if (!$actor['device'] || !in_array($actor['role'],['operator','camera'],true)) { problem(403,'camera-required','Publikować może aktywne urządzenie kamery.'); }
-    } elseif (!in_array($actor['role'],['admin','operator'],true)) { problem(403,'operator-required','Ta operacja wymaga operatora.'); }
+    } elseif (!in_array($actor['role'],['admin','operator','public'],true)) { problem(403,'operator-required','Ta operacja wymaga operatora.'); }
     requireOperationPermission($actor,$action);
     if ($action==='game-rematch') { assertScope($actor,null); }
 }
@@ -221,6 +225,8 @@ function runCommand(PDO $pdo, string $action, array $body): array
         $GLOBALS['snapshotActor']=$actor;
         authorizeCommand($pdo,$actor,$action,$body);
         $previous = sqlOne($pdo,'SELECT * FROM commands WHERE actor=? AND command_id=?',[$actor['actor'],$commandId]);
+        // Pre-upgrade WWW used one shared ledger actor. Recover its exact UUID/body without relabeling audit.
+        if (!$previous && $actor['role']==='public') { $previous=sqlOne($pdo,"SELECT * FROM commands WHERE actor='administrator' AND command_id=?",[$commandId]); }
         if ($previous) {
             if (!hash_equals($previous['payload_hash'],$hash)) { problem(409,'command-payload-conflict','Ten identyfikator komendy był użyty z innymi danymi.'); }
             $result=json_decode($previous['result'],true,512,JSON_THROW_ON_ERROR);

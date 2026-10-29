@@ -23,7 +23,7 @@ $pending=['command_id'=>uuid(),'expected_revision'=>0,'game_id'=>$g['game']['id'
 ${dump}file_put_contents(__DIR__.'/before.json',json_encode(saved($p),JSON_THROW_ON_ERROR));file_put_contents(__DIR__.'/pending.json',json_encode([$access,$pending,$result],JSON_THROW_ON_ERROR));`);
 execFileSync(php,[...args,join(scratch,'seed.php')]);
 const rollback=join(scratch,'rollback');mkdirSync(join(rollback,'data'),{recursive:true});cpSync(join(api,'data/dart-online.sqlite'),join(rollback,'data/dart-online.sqlite'));
-for(const dest of [api,rollback])for(const file of [...modules,'offline.php'])cpSync(join(repo,'public/api',file),join(dest,file));
+for(const dest of [api,rollback])for(const file of [...modules,'offline.php','public.php'])cpSync(join(repo,'public/api',file),join(dest,file));
 writeFileSync(join(scratch,'rollback.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/rollback/index.php';$p=openDatabase();$p->exec('CREATE TABLE local_profile_links(collision TEXT)');$failed=false;try{migrateDatabase($p);}catch(Throwable $e){$failed=true;}if(!$failed||columnExists($p,'devices','native_admin')||tableExists($p,'local_imports')||$p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn()!=6)throw new Exception('Partial v7 migration');echo 'rollback';`);
 assert.equal(execFileSync(php,[...args,join(scratch,'rollback.php')],{encoding:'utf8'}),'rollback');
 writeFileSync(join(scratch,'verify.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/api/index.php';${dump}$p=openDatabase();migrateDatabase($p);migrateDatabase($p);$before=json_decode(file_get_contents(__DIR__.'/before.json'),true);$after=saved($p);
@@ -32,4 +32,4 @@ foreach($after['devices'] as $device)if((int)$device['native_admin']!==0)throw n
 [$access,$pending,$old]=json_decode(file_get_contents(__DIR__.'/pending.json'),true);$_SERVER['HTTP_X_DART_FORMATS']='1';$_SERVER['HTTP_X_DART_OPERATIONS']='2';$_SERVER['HTTP_AUTHORIZATION']='Bearer '.$access['token'];$retry=runCommand($p,'dart-create',$pending);if(canonicalJson($old)!==canonicalJson($retry)||count(saved($p)['darts'])!==1)throw new Exception('Old pending command changed');
 if($p->query('PRAGMA foreign_key_check')->fetchAll()!==[]||$p->query('PRAGMA integrity_check')->fetchColumn()!=='ok')throw new Exception('Integrity');echo 'preserved';`);
 assert.equal(execFileSync(php,[...args,join(scratch,'verify.php')],{encoding:'utf8'}),'preserved');
-console.log('PASS real v6 (2a03c9c) → v7: all original data/credentials/roles/IDs/profile metadata/pending command preserved; repeat, rollback, SQLite integrity');
+console.log('PASS real v6 (2a03c9c) → v8: all original data/credentials/roles/IDs/profile metadata/pending command preserved; repeat, rollback, SQLite integrity');

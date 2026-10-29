@@ -10,6 +10,7 @@ let seen = [];
 let rejectNext = false;
 let delayedDashboard;
 let csrf = 'test-csrf';
+let limitNext=false; let csrfFailures=0; let expireNext=false; let sessionReads=0; let csrfBodies=[];
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   assert.equal(url.pathname, '/dart/api/index.php');
@@ -17,9 +18,13 @@ const server = http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
   const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
   res.setHeader('Content-Type', 'application/json');
-  if (action === 'session') return res.end(JSON.stringify({ ok: true, data: { authenticated: true, csrf_token: 'test-csrf' } }));
+  if (action === 'public-session') { sessionReads++; return res.end(JSON.stringify({ok:true,data:{access:'public',authenticated:false,csrf_token:csrf}})); }
   if (action === 'dashboard') { delayedDashboard = res; return; }
   if (action === 'login') { csrf = 'new-test-csrf'; return res.end(JSON.stringify({ ok: true, data: { authenticated: true, csrf_token: csrf } })); }
+  assert.equal(req.headers['x-dart-client'],'public-web');
+  if(limitNext){limitNext=false;res.statusCode=429;return res.end(JSON.stringify({ok:false,error:{code:'public-rate-limited',message:'rate'}}));}
+  if(csrfFailures>0){csrfFailures--;res.statusCode=403;return res.end(JSON.stringify({ok:false,error:{code:'invalid-csrf-token',message:'expired'}}));}
+  if(expireNext){expireNext=false;csrf='renewed-public-csrf';csrfBodies.push(JSON.stringify(body));res.statusCode=403;return res.end(JSON.stringify({ok:false,error:{code:'invalid-csrf-token',message:'expired'}}));}
   assert.equal(req.headers['x-csrf-token'], csrf);
   seen.push(JSON.stringify(body));
   if (rejectNext) { rejectNext = false; res.statusCode = 409; return res.end(JSON.stringify({ ok: false, error: { code: 'revision-conflict', message: 'conflict' } })); }
@@ -57,6 +62,14 @@ try {
   await assert.rejects(restarted.api.createPlayer('NOT SENT'));
   assert.equal(seen.length, beforeStorageFailure);
   sessionStorage.setItem = set;
+  expireNext=true;const reads=sessionReads;
+  await restarted.api.createPlayer('AFTER EXPIRY');
+  assert.equal(sessionReads,reads+1);assert.equal(csrfBodies[0],seen.at(-1));
+  assert.equal(restarted.pendingCommand(),null);
+  console.log('PASS: public technical session renews once; unchanged command UUID/body; no login');
+  limitNext=true;await assert.rejects(restarted.api.createPlayer('RETRY AFTER RATE'),e=>e.status===429);const limited=restarted.pendingCommand();assert(limited);assert.equal(restarted.currentWriteState(),'unknown');await restarted.retryPending();assert.equal(JSON.parse(seen.at(-1)).command_id,limited.body.command_id);
+  csrfFailures=2;const beforeRenew=sessionReads;await assert.rejects(restarted.api.createPlayer('COOKIE BLOCKED'),e=>e.status===403);assert.equal(sessionReads,beforeRenew+1);assert(restarted.pendingCommand());await restarted.retryPending();
+  console.log('PASS: 429 preserves pending UUID and repeated CSRF denial stops after one renewal');
   const stale = restarted.api.dashboard();
   const staleResult = assert.rejects(stale, e => e.status === 401);
   while (!delayedDashboard) await new Promise(resolve => setTimeout(resolve, 5));

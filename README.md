@@ -1,3 +1,17 @@
+# Dart Lens WWW 1.2.0 — publiczny panel, 29.10.2026
+
+Aktualizacja istniejącego React/Vite + PHP/SQLite, przygotowana lokalnie. Strona otwiera aplikację bez PIN-u, konta, sekretnego linku ani parowania przeglądarki. Gracze i mecze są wspólne. APK1.2.0 zachowuje natywną grę offline oraz własną autoryzację urządzeń. Etap4 organizacji rozgrywek pozostaje anulowany.
+
+Start/wznowienie, prosta konfiguracja301/501/701/BO1–5, oba wyniki obok siebie, Zdobyte/Pozostało/lotki, własna klawiatura i fizyczne skróty. Dotychczasowe korekty, analiza/eksport, szablony i połączenia są w nawigacji/menu meczu. Reguły i metrics1 nadal liczy istniejący serwer. Archiwum z APK ma oznaczenie i tylko odczyt.
+
+- [Publiczny dostęp i CSRF](docs/PUBLIC_ACCESS.md)
+- [Porównanie APK–WWW, testy i ograniczenia](docs/WEB_UPGRADE.md)
+- [Wdrożenie, spójna kopia SQLite i rollback](DEPLOY_HOSTIDO.md)
+
+`npm run lint`, `npm run build` → `dist/`. `node tools/package-release.mjs` po lokalnym commicie tworzy paczkę z manifestem w `.tools/artifacts/`. Bez deploy/push/merge. Wersje zależności zachowane. Poniżej historia wcześniejszych etapów; opisy obowiązkowego logowania WWW są historyczne.
+
+---
+
 # Dart Online i Dart Lens offline — aktualizacja29.10.2026
 
 WWW etapy1–3 zachowane; etap4 organizacji rozgrywek anulowany. Nowe natywne APK1.1.0 prowadzi także samodzielne mecze offline. Udostępnienie online korzysta z nowego API/schema7, jawnego PIN-u/roli, idempotentnego replay i jednego serwerowego właściciela. [Kontrakt](docs/OFFLINE_SYNC.md) · [instrukcja APK](../dart-lens/docs/ONLINE_QUICK_START.md).
@@ -110,4 +124,4 @@ Nowa analiza metrics v1 jest liczona bez cache z obowiązujących wizyt/lotek. D
 
 ## Kopia zapasowa
 
-Dane znajdują się w `api/data/`. Pobierz razem plik `.sqlite` oraz ewentualne pliki `-wal` i `-shm`, najlepiej gdy nikt nie używa aplikacji. Nie umieszczaj ich w repozytorium ani publicznej paczce wdrożeniowej.
+Dane znajdują się w `api/data/`. Wykonuj spójną kopię przez prywatne CLI `tools/backup.php` zgodnie z DEPLOY_HOSTIDO.md. Nie kopiuj oddzielnie aktywnego SQLite/WAL/SHM; konfiguracja i klucz urządzeń również należą do prywatnej kopii, nigdy paczki.

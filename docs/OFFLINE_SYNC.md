@@ -1,3 +1,9 @@
+# Doprecyzowanie WWW1.2.0/schema8 — 29.10.2026
+
+APK1.2.0 nadal korzysta z kontraktu v1 poniżej. Import wymaga uwierzytelnionego APK/operatora; publiczna rola przeglądarki go nie wykonuje. Usunięto logowanie wyłącznie z WWW. games.import_mode zapisuje jawne share: shared jest wspólną grą serwera, archive historią tylko do odczytu. Dawna decyzja jest odzyskiwana z audytu; brak dowodu daje unknown/tylko odczyt. Zachowano origin/local IDs, mapowania, komendy/UUID, rewizje i dawne odpowiedzi. [Migracja/dostęp](PUBLIC_ACCESS.md). Bez wdrożenia produkcji.
+
+---
+
 # Kontrakt lokalnej gry i synchronizacji — v1
 
 Obowiązuje dla natywnego APK1.1.0 i API/schema7. Wdrożenia produkcyjnego nie wykonano. WWW etapy1–3 pozostają zachowane; etap4 anulowano. Nie ma serwera PHP w APK ani nowego transportu LAN.

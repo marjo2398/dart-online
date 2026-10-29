@@ -1,3 +1,13 @@
+# Aktualny dostęp WWW — 29.10.2026, WWW1.2.0/schema8
+
+GET public-session zwraca access=public, authenticated=false, csrf_token i expires_at bez uwierzytelnienia osoby. Publiczna rola, allowlista komend, jednokrotne odnowienie CSRF, limity i audyt: [PUBLIC_ACCESS](PUBLIC_ACCESS.md). Dawniejsze admin-only opisy poniżej zachowują ograniczenia urządzeń; publiczne WWW ma teraz jawne prawa panelu aplikacji, bez hostingu/bazy/sekretów.
+
+Każde Authorization musi przejść walidację niezależnie od X-Dart-Client. APK nadal dart-lens-x01/1, formats1/operations2 i własne tokeny/PIN/parowanie. sync-capabilities.schema=8; analiza/eksport nadal reprezentacja schema_version6/metrics_version1. Dawne session/login/logout pozostają zgodne, nowy frontend nie używa ich do wejścia.
+
+Snapshot/lista/raport addytywnie: game.origin (podsumowanie: origin), kind server/android, mode null/shared/archive/unknown, read_only. Archiwum odmawia edycji409 archive-read-only i ma puste permissions. Stare odpowiedzi ledgeru nie są przepisywane — po retry pobierz świeży game. [Wyniki upgrade](WEB_UPGRADE.md).
+
+---
+
 # Rozszerzenie APK offline — 29.10.2026
 
 Bieżący schemat7, format1/operacje2 oraz wersjonowane zasady `dart-lens-x01/1`. Dodano app-authorize, sync-capabilities, local-game-import i profile-create; profile-save zachowuje kontrolę wersji także przy jawnej archiwizacji. Pełny kontrakt, role, retry, daty, atomowe przekazanie właściciela i limity: [OFFLINE_SYNC](OFFLINE_SYNC.md). Istniejące operacje poniżej pozostają aktualne. Nie wdrożono tej zmiany na produkcję.

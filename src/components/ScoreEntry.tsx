@@ -2,26 +2,28 @@ import { useEffect, useState, type RefObject } from 'react';
 import { api, messageFrom } from '../api';
 import type { CheckoutHints, GameSnapshot } from '../types';
 
-export default function ScoreEntry({ value, onChange, mode, onMode, disabled, remaining, onSubmit, onZero, inputRef }: {
-  value: string; onChange: (v: string) => void; mode: 'score' | 'remaining'; onMode: (m: 'score' | 'remaining') => void;
-  disabled: boolean; remaining: number; onSubmit: () => void; onZero: () => void;
-  inputRef: RefObject<HTMLInputElement | null>;
+export default function ScoreEntry({ value, onChange, mode, disabled, remaining, onSubmit, inputRef }: {
+  value: string; onChange: (v: string) => void; mode: 'score' | 'remaining';
+  disabled: boolean; remaining: number; onSubmit: () => void; inputRef: RefObject<HTMLInputElement | null>;
 }) {
   const preview = value === '' ? null : mode === 'score' ? remaining - Number(value) : Number(value);
+  const digit = (key: string) => onChange((value === '0' ? key : value+key).slice(0,5));
   return <form className="score-entry" onSubmit={e => { e.preventDefault(); if (!disabled && value !== '') onSubmit(); }} onKeyDown={e => {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
-    if (e.key === 'Enter' && e.repeat) e.preventDefault();
-    if (e.key === 'Escape' && !e.repeat) { e.preventDefault(); onChange(''); }
+    if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat && !disabled && value !== '') onSubmit(); }
+    if (disabled || e.repeat) return;
+    if (/^[0-9]$/.test(e.key)) { e.preventDefault(); digit(e.key); }
+    if (e.key === 'Backspace') { e.preventDefault(); onChange(value.slice(0,-1)); }
+    if (e.key === 'Escape') { e.preventDefault(); onChange(''); }
   }}>
-    <label>Sposób wpisywania<select disabled={disabled} value={mode} onChange={e => { onMode(e.target.value as 'score' | 'remaining'); onChange(''); }}><option value="score">Suma wizyty</option><option value="remaining">Pozostało po wizycie</option></select></label>
     <div className="score-form"><label className="sr-only" htmlFor="visit-score">{mode === 'score' ? 'Wynik wizyty' : 'Pozostało po wizycie'}</label>
-      <input ref={inputRef} id="visit-score" inputMode="numeric" type="text" pattern="[0-9]+" maxLength={5} autoComplete="off" value={value} onChange={e => { if (/^\d*$/.test(e.target.value)) onChange(e.target.value); }} disabled={disabled} placeholder={mode === 'score' ? '0–180' : String(remaining)} />
-      <button type="submit" className="button button-primary" disabled={disabled || value === ''}>Zapisz</button>
+      <input ref={inputRef} id="visit-score" inputMode="none" type="text" readOnly autoComplete="off" value={value} disabled={disabled} placeholder={mode === 'score' ? '0–180' : String(remaining)} aria-describedby="score-preview" />
+      <button type="button" className="button button-secondary" disabled={disabled || value === ''} aria-label="Usuń ostatnią cyfrę" onClick={() => onChange(value.slice(0,-1))}>⌫</button>
     </div>
-    <p aria-live="polite">Wpisano: <strong>{value || '—'}</strong> · przewidywane pozostało: <strong>{preview ?? '—'}</strong>. Serwer sprawdzi zapis; bust cofa wizytę.</p>
-    <div className="numeric-pad">{['1','2','3','4','5','6','7','8','9','C','0','⌫'].map(key => <button key={key} type="button" className="button button-secondary" disabled={disabled} onClick={() => onChange(key === 'C' ? '' : key === '⌫' ? value.slice(0,-1) : (value + key).slice(0,5))}>{key}</button>)}</div>
-    {mode === 'score' && <div className="popular-scores">{[26,41,45,60,81,85,100,140,180].map(n => <button className="button button-secondary" type="button" key={n} disabled={disabled} onClick={() => onChange(String(n))}>{n}</button>)}<button type="button" className="button button-secondary" disabled={disabled} onClick={onZero}>0 — pełna wizyta</button></div>}
-    <small>Enter zapisuje, Backspace usuwa cyfrę, Escape czyści pole. Klawiatura działa w tym formularzu; skróty przeglądarki pozostają dostępne. Bust w trybie „Pozostało” wpisz jako faktyczną sumę albo pola lotek.</small>
+    <p id="score-preview" aria-live="polite" className="score-preview">{mode === 'score' ? 'Zdobyte w wizycie' : 'Pozostało po wizycie'} · podgląd pozostało: <strong>{preview ?? '—'}</strong></p>
+    {mode === 'score' && <div className="popular-scores" aria-label="Popularne wyniki">{[26,41,60,100,140,180,45,81,85].map(n => <button className="button button-secondary" type="button" key={n} disabled={disabled} onClick={() => onChange(String(n))}>{n}</button>)}</div>}
+    <div className="numeric-pad">{['1','2','3','4','5','6','7','8','9','CLR','0'].map(key => <button key={key} type="button" className="button button-secondary" aria-label={key==='CLR'?'Wyczyść wpis':key} disabled={disabled} onClick={() => key==='CLR'?onChange(''):digit(key)}>{key}</button>)}<button type="submit" className="button button-primary" disabled={disabled || value === ''} aria-label="Zatwierdź wynik">OK</button></div>
+    <small className="keyboard-hint">Enter = OK · Backspace = usuń cyfrę · Escape = CLR. Zapis dopiero po zatwierdzeniu.</small>
   </form>;
 }
 

@@ -42,7 +42,7 @@ export default function GameSetup({ players, templates, busy, run, onCreated, re
   const [bullConfirmed, setBullConfirmed] = useState(false);
   const [preview, setPreview] = useState<{ description: string; legacy_compatible: boolean } | null>(null);
   const [validation, setValidation] = useState('');
-  const c = custom ? config : standard();
+  const c = config;
   const serialized = JSON.stringify(c);
   useEffect(() => {
     setP1(id => players.some(p => p.id === id) ? id : players[0]?.id ?? 0);
@@ -65,15 +65,17 @@ export default function GameSetup({ players, templates, busy, run, onCreated, re
   return <section className="panel new-game-panel" aria-labelledby="new-game-title">
     <h2 id="new-game-title">Nowa gra</h2>
     <div className="secondary-controls">
-      <button type="button" className={`button ${!custom ? 'button-primary' : 'button-secondary'}`} aria-pressed={!custom} disabled={busy} onClick={() => setCustom(false)}>Szybkie 501</button>
-      <button type="button" className={`button ${custom ? 'button-primary' : 'button-secondary'}`} aria-pressed={custom} disabled={busy} onClick={() => setCustom(true)}>Własna rozgrywka</button>
+      <button type="button" className={`button ${!custom ? 'button-selected' : 'button-secondary'}`} aria-pressed={!custom} disabled={busy} onClick={() => { setCustom(false); setConfig(standard()); }}>Prosta konfiguracja</button>
+      <button type="button" className={`button ${custom ? 'button-selected' : 'button-secondary'}`} aria-pressed={custom} disabled={busy} onClick={() => setCustom(true)}>Zaawansowane i szablony</button>
     </div>
     <form onSubmit={e => { e.preventDefault(); if (!invalidPlayers && preview && (c.starters.method !== 'bull_off' || bullConfirmed)) run(async () => onCreated(await api.createConfiguredGame(p1, p2, c))); }}>
       <fieldset disabled={busy}>
+        {!custom && <><div className="secondary-controls" aria-label="Punkty startowe">{[301,501,701].map(start => <button type="button" key={start} className={`button ${c.scoring.start===start?'button-selected':'button-secondary'}`} aria-pressed={c.scoring.start===start} onClick={() => change({...c,scoring:{...c.scoring,start}})}>{start}</button>)}</div><label>Długość meczu<select value={c.match.target} onChange={e => change({...c,match:{unit:'legs',target:Number(e.target.value)}})}><option value={1}>Jeden leg</option><option value={2}>BO3 · do 2 wygranych</option><option value={3}>BO5 · do 3 wygranych</option></select></label></>}
         <div className="form-grid">
           <label>Zawodnik 1<select value={p1} onChange={e => { setP1(Number(e.target.value)); setBullConfirmed(false); }}><option value={0}>Wybierz zawodnika</option>{players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
           <label>Zawodnik 2<select value={p2} onChange={e => { setP2(Number(e.target.value)); setBullConfirmed(false); }}><option value={0}>Wybierz zawodnika</option>{players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         </div>
+        <button className="button button-ghost" type="button" onClick={() => { setP1(p2); setP2(p1); setBullConfirmed(false); }}>Zamień zawodników</button>
         {invalidPlayers && <p role="alert">Wybierz dwóch różnych zapisanych zawodników. Nowych dodasz w sekcji Zawodnicy.</p>}
         {custom && <>
           <label>Szablon serwera<select value={selected ?? ''} onChange={e => {
@@ -126,7 +128,7 @@ export default function GameSetup({ players, templates, busy, run, onCreated, re
           <p>{preview?.description ?? (validation || 'Sprawdzanie zasad na serwerze…')}</p>
           <p>{playerName(1)} kontra {playerName(2)}. {c.starters.method === 'random' ? 'Pierwszego rozpoczynającego wylosuje i zapisze serwer.' : `Pierwszy rozpoczynający: ${playerName(c.starters.player)}${c.starters.method === 'bull_off' && !bullConfirmed ? ' — wskaż wynik bull-off' : ''}.`} Legi: {c.starters.leg_rotation === 'alternate' ? 'naprzemiennie' : 'ten sam rozpoczynający'}. {c.match.unit === 'sets' && `Sety: ${c.starters.set_rotation === 'alternate' ? 'naprzemiennie' : 'ten sam rozpoczynający'}. `}Decider: {c.starters.decider === 'bull_off' ? 'oczekiwanie na bull-off' : c.starters.decider === 'initial' ? 'rozpoczynający pierwszy leg meczu' : 'według rotacji'}.</p>
           {c.starters.decider !== 'rotation' && <p>Reguła decidera ma pierwszeństwo przed rotacją i wskazaniem początkującego.</p>}
-          {preview && !preview.legacy_compatible && <p>Ten format rozgrywasz w WWW. APK 1.0.1 nie może go otworzyć ani prowadzić kamery dla tego meczu.</p>}
+          {preview && !preview.legacy_compatible && <p>Obsługiwane w aktualnym APK 1.2.0 i WWW. Starsze APK 1.0.1 wymaga aktualizacji dla tego formatu.</p>}
         </div>
         <button type="submit" className="button button-primary button-large full-width" disabled={invalidPlayers || !preview || (c.starters.method === 'bull_off' && !bullConfirmed)}>Rozpocznij mecz</button>
       </fieldset>

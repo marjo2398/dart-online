@@ -37,19 +37,38 @@ function endpoint(action: string, query?: Record<string, string | number>): stri
   return url.toString();
 }
 
-async function request<T>(action: string, options: {
+type RequestOptions = {
   method?: 'GET' | 'POST'; body?: Record<string, unknown>;
   query?: Record<string, string | number>; signal?: AbortSignal;
-} = {}): Promise<T> {
+};
+let sessionFlight: Promise<SessionState> | null = null;
+async function publicSession(): Promise<SessionState> {
+  if (!sessionFlight) sessionFlight = sendRequest<SessionState>('public-session').then(remember).finally(() => { sessionFlight = null; });
+  return sessionFlight;
+}
+async function request<T>(action: string, options: RequestOptions = {}): Promise<T> {
+  if (options.method === 'POST' && action !== 'login' && !csrfToken) await publicSession();
+  const usedToken = csrfToken;
+  try { return await sendRequest<T>(action, options); }
+  catch (error) {
+    // CSRF is rejected before dispatch. Renew once and keep the exact command UUID/body.
+    // Network/5xx results remain uncertain and always require an explicit retry.
+    if (!(error instanceof ApiError) || !['invalid-csrf-token','authentication-required'].includes(error.code) || options.signal?.aborted) throw error;
+    if (csrfToken === usedToken || !csrfToken) await publicSession();
+    return sendRequest<T>(action, options);
+  }
+}
+async function sendRequest<T>(action: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET';
   const requestCsrfToken = csrfToken;
   const headers = new Headers({ Accept: 'application/json' });
   headers.set('X-Dart-Formats', '1');
   headers.set('X-Dart-Operations', '2');
+  headers.set('X-Dart-Client', 'public-web');
   if (method === 'POST') {
     headers.set('Content-Type', 'application/json');
     if (action !== 'login') {
-      if (!csrfToken) throw new ApiError(403, 'missing-csrf-token', 'Sesja wygasła. Zaloguj się ponownie.');
+      if (!csrfToken) throw new ApiError(403, 'missing-csrf-token', 'Nie można odnowić ochrony zapisu. Odśwież połączenie.');
       headers.set('X-CSRF-Token', csrfToken);
     }
   }
@@ -85,7 +104,7 @@ async function request<T>(action: string, options: {
   }
 }
 function ambiguous(error: unknown): boolean {
-  return !(error instanceof ApiError) || error.status === 0 || error.status >= 500 || error.code === 'invalid-response';
+  return !(error instanceof ApiError) || error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500 || error.code === 'invalid-response';
 }
 async function execute<T>(command: PendingCommand): Promise<T> {
   if (inFlight) throw new ApiError(409, 'write-pending', 'Poczekaj na zakończenie zapisu.');
@@ -163,7 +182,7 @@ export const api = {
   selectStarter(gameId: number, playerId: number, revision: number): Promise<GameSnapshot> {
     return mutate('starter-select', { game_id: gameId, player_id: playerId }, revision);
   },
-  async session(): Promise<SessionState> { return remember(await request('session')); },
+  session: publicSession,
   async login(password: string): Promise<SessionState> { return remember(await request('login', { method: 'POST', body: { password } })); },
   async logout(): Promise<SessionState> { return remember(await request('logout', { method: 'POST' })); },
   dashboard(): Promise<DashboardData> { return request('dashboard'); },
@@ -204,7 +223,7 @@ export function messageFrom(error: unknown): string {
 }
 
 export async function downloadAnalysis(filters:AnalysisFilters,format:'json'|'csv',dataset = 'summary') {
-  const response = await fetch(endpoint('analysis-export',{...filters,format,dataset}),{credentials:'same-origin',cache:'no-store',redirect:'error'});
+  const response = await fetch(endpoint('analysis-export',{...filters,format,dataset}),{headers:{'X-Dart-Client':'public-web','X-Dart-Formats':'1','X-Dart-Operations':'2'},credentials:'same-origin',cache:'no-store',redirect:'error'});
   if (!response.ok) { const result=await response.json(); throw new ApiError(response.status,result.error?.code ?? 'export-error',result.error?.message ?? 'Eksport nie powiódł się.'); }
   const url=URL.createObjectURL(await response.blob()); const link=document.createElement('a'); link.href=url; link.download=`dart-lens-${dataset}.${format}`; document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }

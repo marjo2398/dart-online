@@ -14,6 +14,7 @@ require_once __DIR__ . '/operations.php';
 require_once __DIR__ . '/profiles.php';
 require_once __DIR__ . '/analysis.php';
 require_once __DIR__ . '/offline.php';
+require_once __DIR__ . '/public.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
@@ -251,7 +252,7 @@ function migrateDatabase(PDO $pdo): void
     if (tableExists($pdo, 'schema_meta') && (int) $pdo->query("SELECT value FROM schema_meta WHERE key = 'schema_version'")->fetchColumn() >= 3) {
         migrateFormats($pdo);
         migrateOperations($pdo);
-        migrateProfiles($pdo); migrateOffline($pdo);
+        migrateProfiles($pdo); migrateOffline($pdo); migratePublicAccess($pdo);
         return;
     }
     transaction($pdo, static function () use ($pdo): void {
@@ -363,7 +364,7 @@ function migrateDatabase(PDO $pdo): void
     });
     migrateFormats($pdo);
     migrateOperations($pdo);
-    migrateProfiles($pdo); migrateOffline($pdo);
+    migrateProfiles($pdo); migrateOffline($pdo); migratePublicAccess($pdo);
 }
 
 function migrateLegacyThrows(PDO $pdo): void
@@ -535,17 +536,18 @@ function hasCurrentAuthentication(): bool
         && $csrfToken !== '';
 
     if (!$authenticated && (isset($_SESSION['authenticated']) || isset($_SESSION['expires_at']))) {
-        $_SESSION = [];
+        unset($_SESSION['authenticated'],$_SESSION['expires_at'],$_SESSION['authenticated_at'],$_SESSION['csrf_token']);
     }
 
     return $authenticated;
 }
 
-function requireCsrf(): void
+function requireCsrf(bool $public = false): void
 {
-    $sessionToken = $_SESSION['csrf_token'] ?? null;
+    $sessionToken = $_SESSION[$public ? 'web_csrf_token' : 'csrf_token'] ?? null;
     $requestToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
-    if (!is_string($sessionToken) || !is_string($requestToken) || !hash_equals($sessionToken, $requestToken)) {
+    $expires = (int)($_SESSION[$public ? 'web_expires_at' : 'expires_at'] ?? 0);
+    if ($expires <= time() || !is_string($sessionToken) || !is_string($requestToken) || !hash_equals($sessionToken, $requestToken)) {
         problem(403, 'invalid-csrf-token', 'Sesja wygasła albo token bezpieczeństwa jest nieprawidłowy. Odśwież stronę.');
     }
 }
@@ -695,7 +697,9 @@ function fetchGameVisits(PDO $pdo, int $gameId): array
 
 function replayGame(array $game, array $visits): array
 {
-    return operationSnapshot($game,replayFormat($game,$visits));
+    $snapshot = operationSnapshot($game,replayFormat($game,$visits));
+    $snapshot['game']['origin'] = importOrigin($game);
+    return $snapshot;
 }
 
 function fetchGameSnapshot(PDO $pdo, int $gameId): array
@@ -707,6 +711,7 @@ function fetchGameSnapshot(PDO $pdo, int $gameId): array
 function snapshotSummary(array $snapshot): array
 {
     return [
+        'origin' => $snapshot['game']['origin'],
         'id' => $snapshot['game']['id'],
         'player1' => $snapshot['players'][0],
         'player2' => $snapshot['players'][1],
@@ -1001,6 +1006,15 @@ try {
     migrateDatabase($database);
 
     $action = (string) ($_GET['action'] ?? 'session');
+    // An explicitly supplied credential must validate, including an empty/malformed header.
+    if ($hasBearer) { $GLOBALS['snapshotActor'] = authenticateActor($database); }
+
+    if ($action === 'public-session') {
+        requireMethod('GET');
+        if ($hasBearer) { problem(403,'browser-session-only','Sesja techniczna służy publicznemu WWW.'); }
+        publicRateLimit($database,$action);
+        sendData(publicSessionData($configuration));
+    }
 
     if ($action === 'session') {
         requireMethod('GET');
@@ -1017,6 +1031,7 @@ try {
     }
     $actor = authenticateActor($database);
     $GLOBALS['snapshotActor']=$actor;
+    if ($actor['role'] === 'public') { publicRateLimit($database,$action); }
     if ($action === 'logout') {
         requireMethod('POST');
         requireCsrf();
@@ -1029,7 +1044,7 @@ try {
     if (in_array($action,['profiles','profile','analysis','match-analysis','history-search','analysis-export'],true)) {
         requireMethod('GET'); assertProfileAdmin($actor); handleAnalysisRead($database,$action,$_GET);
     }
-    if ($action === 'sync-capabilities') { requireMethod('GET'); sendData(['rules_contract'=>LOCAL_RULES_CONTRACT,'formats'=>1,'operations'=>2,'schema'=>7]); }
+    if ($action === 'sync-capabilities') { requireMethod('GET'); sendData(['rules_contract'=>LOCAL_RULES_CONTRACT,'formats'=>1,'operations'=>2,'schema'=>8]); }
     if ($action === 'dashboard') {
         requireMethod('GET');
         $data = getDashboard($database);
@@ -1059,7 +1074,7 @@ try {
     }
     if ($action === 'devices') {
         requireMethod('GET');
-        if ($actor['role'] !== 'admin') { problem(403,'admin-required','Wymagany administrator.'); }
+        if (!panelManager($actor)) { problem(403,'admin-required','Wymagany dostęp do zarządzania urządzeniami.'); }
         sendData(['devices' => array_map('publicDevice', sqlRows($database,'SELECT * FROM devices ORDER BY name,id'))]);
     }
     if ($action==='checkout-hints') {
@@ -1093,7 +1108,7 @@ try {
     }
 
     requireMethod('POST');
-    if (!$hasBearer) { requireCsrf(); }
+    if (!$hasBearer) { requireCsrf($actor['role'] === 'public'); }
     $body = readJsonBody();
     if ($action==='profile-merge-preview') { assertProfileAdmin($actor); $database->beginTransaction(); sendData(mergePreview($database,$body)); }
     if ($action==='history-preview') {

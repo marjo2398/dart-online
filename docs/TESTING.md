@@ -1,3 +1,17 @@
+# Publiczny upgrade WWW1.2.0 — 29.10.2026
+
+Osobne lokalne bazy, bez konfiguracji/danych produkcji. public-access.mjs9 grup, migration-public.mjs pełny v7→8/powtórzenie/wstrzyknięty rollback; apk-statistics.mjs rzeczywiste klasy APK i3 zbiory; web-client.mjs utrata ACK, pamięć/UUID, max1 odnowienie CSRF, 429 i stale401. DART_TEST_PHP wskazuje PDO SQLite; tu portable PHP8.5.12 sąsiedniego repo.
+
+Wykonane regresje: integration19, formats13, operations12, analysis9 i migracjev3/v4/v5/v6 do8 PASS. TypeScript/Vite/składnia PHP PASS. Narzędzie spójnej kopii tools/test-backup.php6/6 PASS (SQLite3 backup i VACUUM INTO z WAL, integralność, konfiguracja/klucz, odmowa nadpisania). Bez testu skali i pełnej regresji Androida.
+
+Android: istniejące OfflinePhpIntegrationTest i X01ContractTest2/2 bez skip;39 scenariuszy zasad w jednym teście. DART_OFFLINE_SOURCE wskazywał nowe public/api, DART_OFFLINE_PHP lokalny PHP. testReleaseUnitTest --tests pl.dartlens.localplay.OfflinePhpIntegrationTest --tests pl.dartlens.localplay.X01ContractTest. Nie przebudowano/instalowano APK. apk-statistics kompiluje tylko Java harness w repo WWW z istniejącymi klasami release, JSON i Kotlin stdlib.
+
+Przeglądarka/lokalne API i screenshoty: [WEB_UPGRADE](WEB_UPGRADE.md). Pobrany CSV:301 pkt/6 lotek zwycięzcy, bez fikcyjnych pól/prób. Test klas APK ujawnił błędne lokalne zaliczenie przerwania jako remisu; nie deklarujemy pełnej zgodności tych liczników.
+
+Bez telefonu/kamery/renderu APK, PHP7.4, Apache/LiteSpeed i produkcji. Reguły .htaccess i paczka zostały skontrolowane jako pliki; rzeczywiste odmowy HTTP są bramą wdrożenia. Starsze dowody poniżej są historią.
+
+---
+
 # APK offline / import — 29.10.2026, nowe lokalne fixture
 
 - `backendtests/rules-contract.php`:39 wspólnych ręcznie określonych przypadków config/komend/stanu/błędów; ten sam JSON uruchamia Kotlin. Bez generowania oczekiwań z silnika i bez konfiguracji/sekretów produkcji.

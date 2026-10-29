@@ -12,14 +12,15 @@ export function useWriteState(): WriteState {
   return state;
 }
 
-export default function WriteStatus({ onRecovered, onAuthError }: {
+export default function WriteStatus({ onRecovered, onAuthError, compact = false }: {
   onRecovered: () => Promise<void>;
   onAuthError?: (error: unknown) => void;
+  compact?: boolean;
 }) {
   const state = useWriteState();
   const [error, setError] = useState('');
   const [recoveredCode, setRecoveredCode] = useState('');
-  if (state === 'idle' && !error) return null;
+  if ((state === 'idle' || (compact && state === 'saved' && !recoveredCode)) && !error) return null;
   const labels = { idle: '', pending: 'Operacja oczekuje na odpowiedź serwera.', saved: 'Operacja zapisana.', rejected: 'Operacja odrzucona — sprawdź aktualny stan przed nowym zapisem.', unknown: 'Wynik poprzedniego zapisu jest nieznany. Nowe zapisy są wstrzymane.' };
   const retry = async () => {
     setError('');

@@ -1,4 +1,6 @@
 export interface SessionState {
+  access?: 'public';
+  expires_at?: number;
   authenticated: boolean;
   csrf_token: string | null;
 }
@@ -57,6 +59,7 @@ export interface Visit {
 }
 
 export interface GameState {
+  origin?: { kind: 'server' | 'android'; mode: 'shared' | 'archive' | 'unknown' | null; read_only: boolean };
   context_kind?: string | null; venue?: string | null;
   operation_state: 'playing' | 'paused' | 'awaiting_starter' | 'resolved' | 'confirmed';
   is_paused: boolean;
@@ -169,6 +172,7 @@ export interface AuditEntry {
 }
 
 export interface GameSummary {
+  origin?: GameState['origin'];
   operation_state: GameState['operation_state'];
   decision: AdministrativeDecision | null;
   config: MatchConfig;

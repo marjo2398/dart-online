@@ -1,13 +1,13 @@
 Options -Indexes
 
-<FilesMatch "^(config\.local\.php|config\.example\.php)$">
+<FilesMatch "(^config[^/]*\.php(?:\..*)?$|^device-secret\.bin$|\.sqlite(?:-wal|-shm)?(?:\..*)?$|\.(?:sql|log|bak|backup|zip|gz|tgz)$)">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>
 </FilesMatch>
 
 <IfModule !mod_authz_core.c>
-  <FilesMatch "^(config\.local\.php|config\.example\.php)$">
+  <FilesMatch "(^config[^/]*\.php(?:\..*)?$|^device-secret\.bin$|\.sqlite(?:-wal|-shm)?(?:\..*)?$|\.(?:sql|log|bak|backup|zip|gz|tgz)$)">
     Order allow,deny
     Deny from all
   </FilesMatch>

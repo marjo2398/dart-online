@@ -121,6 +121,7 @@ function importLocalGame(PDO $pdo,array $actor,array $b):array {
  }
  if($finishedAt!==null&&$g['status']==='finished')$pdo->prepare('UPDATE games SET finished_at=? WHERE id=?')->execute([$finishedAt,$id]);
  foreach($newArchived as $archivedId)$pdo->prepare('UPDATE players SET archived=1 WHERE id=?')->execute([$archivedId]);
+ $pdo->prepare('UPDATE games SET import_mode=? WHERE id=?')->execute([$share?'shared':'archive',$id]);
  rebuildAllPlayerStats($pdo);$snapshot=fetchGameSnapshot($pdo,$id);
  $result=['local_game_id'=>$local,'command_id'=>$b['command_id'],'game_id'=>$id,'players'=>$links,'snapshot'=>$snapshot,'owner'=>'server'];
  $pdo->prepare('INSERT INTO local_imports VALUES(?,?,?,?,?)')->execute([$origin,$local,$payload,$id,canonicalJson($result)]);return $result;

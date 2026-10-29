@@ -1,3 +1,11 @@
+# Publiczny panel istniejącej aplikacji — 29.10.2026
+
+public.php dodaje rolę public/bootstrap CSRF niezależne od Bearer/legacy login. Allowlistowane komendy nadal przechodzą runCommand, transakcję, rewizję i audyt. Liczniki żądań są oddzielnymi krótkimi transakcjami, bez zmiany wyniku. Schema8 zachowuje dane, odzyskuje import_mode z jawnego audytu i blokuje edycję archiwum/nieznanego trybu. [Szczegóły](PUBLIC_ACCESS.md).
+
+React nadal renderuje istniejące komponenty/snapshot. Menu przenosi funkcje, prosty konfigurator tworzy config1. Klawiatura nie ma silnika gry, presety/CLR nie zapisują bez OK. Bez PWA/offline WWW, nowego panelu i nowych zależności. Telefon zachowuje lokalną własność; urządzenia własne uwierzytelnianie.
+
+---
+
 # APK offline i atomowy import — 29.10.2026
 
 Telefon ma oddzielny silnik Kotlin zgodny z kontraktem `dart-lens-x01/1` i lokalny transakcyjny SQLite. PHP pozostaje silnikiem wspólnego meczu online; nie jest przenoszone do APK.39 ręcznie określonych scenariuszy uruchamia Kotlin i PHP. `offline.php` dodaje schema7, jawny natywny dostęp PIN i import przez istniejący runCommand/ledger/audyt; nie zastępuje replayFormat/evaluateDarts ani ukończonych etapów WWW.

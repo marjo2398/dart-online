@@ -1,3 +1,9 @@
+# Obowiązująca decyzja WWW — 29.10.2026
+
+WWW i APK są jednym produktem. Upgrade istniejącego WWW1.2.0 daje publiczne wejście bez konta/PIN-u/parowania przeglądarki. Dane są wspólne; zapis nadal chronią techniczne CSRF, walidacja, rewizje i idempotencja. APK zachowuje offline i uwierzytelnianie, kamera tylko proponuje. Archiwum nie oznacza udostępnienia sterowania. Etap4 organizacji anulowany. Zasady/metrics1 poniżej pozostają, starsze wzmianki o PIN-ie WWW są historyczne. [Publiczny model](PUBLIC_ACCESS.md), [różnice/ograniczenia](WEB_UPGRADE.md).
+
+---
+
 # Aktualna decyzja produktu — APK offline, 29.10.2026
 
 WWW etapy1–3 są ukończone według przekazania użytkownika i lokalnego kodu; etap4 (organizacja rozgrywek) anulowano. Natywne APK prowadzi pełną ręczną grę lokalną bez sieci/kamery/parowania. Wspólny mecz online prowadzi wyłącznie serwer; przekazanie jest jawne, autoryzowane i idempotentne. Jedna fizyczna tarcza, opcjonalna wspomagana kamera; bez fuzji i gry między oddzielnymi tarczami. Nie zmieniono istniejącego WWW w celu uproszczenia Androida. [Kontrakt synchronizacji](OFFLINE_SYNC.md), [mapa WWW→APK](../../dart-lens/docs/OFFLINE_PLAY.md). Nowe API wymaga osobnego wdrożenia.

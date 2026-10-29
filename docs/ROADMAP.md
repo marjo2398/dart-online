@@ -1,3 +1,9 @@
+# Bieżące wydanie WWW1.2.0 — 29.10.2026
+
+Lokalny upgrade istniejącego panelu do wspólnego zakresu APK1.2.0: publiczny dostęp, uporządkowany UI, jawne archiwum/udostępnienie i testy współpracy. Etap4 organizacji nadal anulowany. Pozostają osobno autoryzowane wdrożenie z kopią/odbiorem produkcji i rzeczywiste urządzenia. Wykryty lokalny licznik remisów APK po przerwaniu wymaga osobnej poprawki Androida; nie przenosimy błędu do WWW. [Zakres/wyniki](WEB_UPGRADE.md). Poniżej wcześniejszy plan.
+
+---
+
 # Priorytet APK — stan 29.10.2026
 
 Etapy1–3 WWW ukończone według użytkownika; etap4 anulowany. Zlecono i lokalnie wdrożono trzy części: natywna gra offline z trwałym zapisem; synchronizacja i wspólna online przez schema7; sprawdzenie aktualizacji i APK1.1.0. Zakres jest opisany w [OFFLINE_SYNC](OFFLINE_SYNC.md) i [mapie APK](../../dart-lens/docs/OFFLINE_PLAY.md). Bez automatycznego deploy/push/merge. Dalsza brama: ręczna instalacja aktualizacji, próby urządzeń i osobno zatwierdzone wdrożenie nowego API. Poniższe zapisy etapów są historią ich realizacji.

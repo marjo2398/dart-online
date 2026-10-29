@@ -1,3 +1,23 @@
+# Aktualizacja WWW1.2.0/schema8 — przygotowana lokalnie 29.10.2026
+
+Nie wykonano wdrożenia. Jedyny cel to https://dartlens.host749284.xce.pl/ i ostatnio potwierdzony katalog /home/host749284/domains/dartlens.host749284.xce.pl/public_html/dart-lens-app/public. Przed przyszłym wgraniem potwierdź go w SSH/DirectAdmin. Nie uruchamiaj dawnego /dart/ ani MySQL.
+
+Paczka powstaje przez node tools/package-release.mjs po commicie, z czystego drzewa. Ścieżka .tools/artifacts/www-1.2.0-public-20261029-<commit>/, manifest release-manifest.json i ZIP obok. Manifest zawiera SHA256 każdego pliku, wersję1.2.0, schema8, source_commit i rzeczywistą listę zmian od188658a. W paczce public/ zawiera gotowy frontend oraz **komplet8 modułów PHP**, również formats/operations/profiles/analysis/offline z poprzednich etapów. Zmiany od188658a nie są pełną listą plików potrzebnych starszej produkcji.
+
+public/ nie zawiera głównego .htaccess, config.local.php ani bazy. Główny produkcyjny .htaccess z open_basedir/DirectoryIndex/CacheLookup off pozostaje zachowany. Wgraj api/.htaccess i api/data/.htaccess z paczki; nie zastępuj całego api/data. private-tools/backup.php przenieś wyłącznie do prywatnego katalogu do CLI, poza public_html.
+
+Migracja do8 wykona wcześniejsze migracje oraz addytywne web_request_limits/games.import_mode. Istniejące ID, poświadczenia, historia/UUID i odpowiedzi zostają. Dawne tryby importu są odzyskiwane z audytu; brak dowodu daje unknown/tylko odczyt. Uruchom migrację na odrębnej kopii i sprawdź integralność przed docelowym ruchem. **Zachowaj** produkcyjny config (także hash PIN-u potrzebny APK), SQLite/WAL/SHM i device-secret.bin. Spójną kopię wykonuje opisane niżej prywatne backup.php, nie zwykłe kopiowanie aktywnego SQLite.
+
+W przerwie zapisu: najpierw nowe assets, następnie jednocześnie pełny komplet backendu, na końcu index.html. Nie używaj synchronizacji usuwającej pliki. Zachowaj wcześniejsze zasoby dla otwartych kart; po aktualizacji poproś o odświeżenie. Nowy index ma wskazywać wyłącznie nowe hashowane pliki. Dla index.html/API utrzymaj brak cache; nie dodawaj service workera. Stare zasoby można usuwać dopiero po zamknięciu dawnych sesji, osobnym kontrolowanym krokiem.
+
+Po wdrożeniu sprawdź: świeża karta bez cookies → publiczny start; dotychczasowi gracze/stare mecze; ręczny mecz i zgodność dwóch klientów; korekta/cofnięcie/pauza/checkout/lock; odświeżenie i wygaśnięcie sesji bez PIN-u; parowanie, odmowy widza/kamery i aktualna APK. Kontroluj HTTP JS/CSS/API, 403/404 dla config/kopii config, SQLite/WAL/SHM/device-secret, logów i kopii. Bazy/sekrety nie mogą trafić do publicznego ZIP ani pod HTTP. Testowy mecz nie może zastąpić danych historycznych. Wynik produkcyjny zapisuj dopiero po rzeczywistym wykonaniu tych prób.
+
+Rollback: zatrzymaj zapisy i zachowaj bieżący stan prywatnie. Przywróć zgodny poprzedni kod oraz **spójną** kopię sprzed migracji, bez mieszania jej ze starym WAL/SHM. Samo cofnięcie PHP nie cofa schematu ani późniejszych wyników. Jeżeli po migracji powstały nowe zapisy, decyzja o przywróceniu starej kopii wymaga sprawdzenia utraty tych danych. Prywatna kopia poprzedniego wydania i manifest backupu są warunkiem wdrożenia.
+
+[Publiczny model](docs/PUBLIC_ACCESS.md) · [testy/ograniczenia](docs/WEB_UPGRADE.md). Instrukcja niżej zachowuje procedurę spójnej kopii; dawne polecenia logowania dotyczą starszego wydania.
+
+---
+
 # Wdrożenie na Hostido
 
 Docelowy panel to `https://dartlens.host749284.xce.pl/`, PHP/SQLite. Wdrożenie obejmuje wyłącznie potwierdzony katalog `public_html/dart-lens-app/public` i prywatne kopie tego projektu poza `public_html`. Nie zmieniaj innych stron ani globalnej wersji PHP domeny. Aplikacja nie wymaga procesu Node.js na serwerze ani `mod_rewrite`. Ta instrukcja nie jest potwierdzeniem wdrożenia; aktualny wynik zapisujemy w `PROJECT_STATE.md`.
@@ -71,7 +91,7 @@ Otwórz adres z końcowym ukośnikiem:
 https://dartlens.host749284.xce.pl/
 ```
 
-Zaloguj się, dodaj dwóch zawodników i rozpocznij mecz. Mikrofon wymaga HTTPS, zgody przeglądarki i wsparcia Web Speech API; wyniki zawsze można wpisywać ręcznie.
+Aplikacja otworzy się bez logowania. Dodaj dwóch zawodników i rozpocznij mecz. Mikrofon wymaga HTTPS, zgody przeglądarki i wsparcia Web Speech API; wyniki zawsze można wpisywać ręcznie.
 
 ## Aktualizacja istniejącego panelu i kopia przed migracją
 
@@ -88,9 +108,9 @@ Zaloguj się, dodaj dwóch zawodników i rozpocznij mecz. Mikrofon wymaga HTTPS,
    Potrzebne `pdo_sqlite` i `SQLite3::backup()` albo SQLite ≥3.27 z `VACUUM INTO`. Skrypt blokuje zapisy na czas wykonania spójnego obrazu, kopiuje zatwierdzone dane również z WAL, zachowuje `config.local.php` i istniejący `data/device-secret.bin`. Weryfikuje `integrity_check` i liczby rekordów, zapisuje SHA-256 oraz metodę w `backup-manifest.json`. Źródła nie są modyfikowane. Nie zastępuj tego kopiowaniem aktywnych plików `.sqlite`, `-wal`, `-shm` oddzielnie.
 
 3. Wymagaj kodu wyjścia 0, komunikatu `Backup verified` i manifestu `integrity_check=ok`. Nieukończona kopia pozostaje prywatna do diagnostyki; nie używaj jej do odtworzenia i nie kontynuuj migracji. Przez panel bez terminala można uruchomić identyczne polecenie jednorazowym zadaniem CRON, zachowując wynik poza katalogiem publicznym; po sprawdzeniu wyniku usuń wyłącznie własne zadanie.
-4. Wgraj selektywnie `dist/index.html`, nowe pliki `dist/assets/`, `dist/api/index.php`, `dist/api/sync.php`, `dist/api/.htaccess` i `dist/api/data/.htaccess`. Najpierw zasoby, następnie komplet backendu, na końcu `index.html`. Nie uruchamiaj synchronizacji z usuwaniem plików. Nie zastępuj katalogu `api/data/` pustym katalogiem z paczki. Zachowaj stare zasoby na czas otwartych sesji.
+4. Wgraj selektywnie zawartość public/ z przygotowanej paczki: index.html, assets, wszystkie moduły PHP oraz api/.htaccess i api/data/.htaccess. Najpierw zasoby, następnie komplet backendu, na końcu `index.html`. Nie uruchamiaj synchronizacji z usuwaniem plików. Nie zastępuj katalogu `api/data/` pustym katalogiem z paczki. Zachowaj stare zasoby na czas otwartych sesji.
 5. **Zachowaj bez zmian** produkcyjne `api/config.local.php`, cały `api/data/` (SQLite, WAL, SHM oraz `device-secret.bin`) i pozostałe pliki prywatne. Nie wgrywaj lokalnej bazy testowej, konfiguracji, sekretów, narzędzi CLI ani `backendtests/`. Sekret urządzeń jest potrzebny do zachowania powtarzalnego dołączenia urządzenia; nie generuj go ponownie podczas aktualizacji.
-6. Pierwsze żądanie API wykonuje migrację schematu w transakcji. Sprawdź HTTPS, logowanie, istniejących graczy/identyfikatory/mecze/statystyki i zasoby JS/CSS. W odrębnym meczu testowym sprawdź WWW/APK: ręczny zapis, cofnięcie, korektę i zgodny stan dwóch klientów. Zweryfikuj odmowę pobrania konfiguracji, SQLite i sekretu przez HTTP. Zapisz osobno wynik wdrożenia i rzeczywistych prób telefonu — lokalny test API ich nie zastępuje.
+6. Pierwsze żądanie API wykonuje migrację schematu w transakcji. Sprawdź HTTPS, wejście publiczne i odnowienie CSRF bez logowania, istniejących graczy/identyfikatory/mecze/statystyki i zasoby JS/CSS. W odrębnym meczu testowym sprawdź WWW/APK: ręczny zapis, cofnięcie, korektę i zgodny stan dwóch klientów. Zweryfikuj odmowę pobrania konfiguracji, SQLite i sekretu przez HTTP. Zapisz osobno wynik wdrożenia i rzeczywistych prób telefonu — lokalny test API ich nie zastępuje.
 
 W razie błędu przerwij zapisy i zachowaj log bez tokenów/hasła. Samo cofnięcie plików PHP nie cofa schematu bazy. Odtworzenie wykonuj w przerwie bez procesów korzystających z SQLite: odłóż obecną bazę wraz z WAL/SHM do osobnego prywatnego katalogu, odtwórz spójny zestaw z ukończonej kopii i zgodny kod. Nie łącz odtworzonej bazy ze starym WAL/SHM. Odtworzenie starszej kopii pomija późniejsze zapisy — przed nim sprawdź zakres utraty i uzyskaj decyzję właściciela.
 
@@ -101,5 +121,5 @@ Lokalna kontrola narzędzia kopii (na odrębnych bazach testowych): `php -d exte
 - **„API nie jest jeszcze skonfigurowane”** — brakuje `api/config.local.php` lub prawidłowego `password_hash`.
 - **„PDO SQLite niedostępne”** — sprawdź `pdo_sqlite` dla tej aplikacji z administratorem hostingu; nie zmieniaj globalnej wersji PHP domeny.
 - **„Katalog api/data nie jest zapisywalny”** — popraw właściciela lub uprawnienia.
-- **Logowanie wraca do formularza** — sprawdź HTTPS, `secure_cookie => true` i obsługę ciasteczek.
+- **Zapis nie odnawia ochrony CSRF** — sprawdź HTTPS, secure_cookie i obsługę cookies. Nowy frontend nie ma formularza logowania; widoczny formularz oznacza stare index/zasoby lub starą instalację.
 - **Mikrofon jest nieaktywny** — brak Web Speech API albo zgody na mikrofon.

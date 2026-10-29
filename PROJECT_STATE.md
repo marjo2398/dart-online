@@ -1,3 +1,21 @@
+# WWW1.2.0 — publiczny upgrade do APK1.2.0, 29.10.2026
+
+Na feature/public-web-apk-20261029 od188658a zaktualizowano istniejące WWW/API. APK1.2.0/code13 (Android de8facb, kod c77797d) bez zmian, przebudowy i instalacji. Cudze dopiski TASK i audyt w dart-lens zachowano. Jeden produkt, etap4 organizacji nadal anulowany.
+
+Publiczny start, jawna rola public i techniczne CSRF z jednokrotnym odnowieniem; tokeny/role urządzeń, rewizje i stare UUID zachowane. Nawigacja, proste ustawienia, dwa wyniki, klawiatura i menu dotychczasowych funkcji. Schema8 dodaje liczniki żądań i import_mode; archiwum/nieznany tryb nie dostają sterowania. Gra lokalna pozostaje na telefonie do jawnego przekazania.
+
+Testy: public-access9, API19, formaty13, operacje12, analiza9, klientTS/HTTP, v7→v8/rollback i dawne migracje PASS. OfflinePhpIntegrationTest i X01ContractTest 2/2 bez skip,39 scenariuszy zasad. Porównano rzeczywiste klasy APK/statystyki serwera dla3 zbiorów. Potwierdzono błąd lokalnego licznika remisów APK przy przerwaniu; nie zmieniano definicji WWW. Szczegóły w docs/WEB_UPGRADE.md i docs/TESTING.md.
+
+Przeglądarka/lokalne API: nowa karta bez logowania, utworzenie301, presety/fizyczna klawiatura/CLR/OK/dwuklik, dwie karty i anulowanie szkicu, korekta60→40, częściowa wizyta/pauza/reload/wznowienie, wymuszone wygaśnięcie sesji podczas zapisu, checkout/zatwierdzenie/lock, raport i pobrany CSV. Screenshoty: .tools/public-web-20261029/screenshots/; CSV obok. Lint/build/PHP8.5 PASS.
+
+Build: dist/. Paczka: .tools/artifacts/www-1.2.0-public-20261029-<commit>/ i ZIP obok. release-manifest.json podaje dokładny commit, pliki i SHA256. public/ aktualizuje istniejące wdrożenie; private-tools/ zawiera wyłącznie narzędzie kopii do prywatnego CLI. Bez bazy, config.local.php i sekretów.
+
+Bez deploy/push/merge i zapisów produkcyjnych. Jedyna domena/ostatnia potwierdzona ścieżka pozostają w DEPLOY_HOSTIDO.md; operator potwierdza je przed przyszłym wdrożeniem. Paczka zawiera wszystkie moduły API, również ze wcześniejszych lokalnych etapów, ponieważ produkcja może nadal mieć starszy kod.
+
+hardware_verified=false. Nie wykonano telefonu/kamery/renderu APK, PHP7.4, Apache/LiteSpeed ani prób produkcji. LocalStatistics APK wymaga osobnej poprawki licznika remisów po przerwaniu. [Macierz/dowody](docs/WEB_UPGRADE.md), [publiczny model](docs/PUBLIC_ACCESS.md), [wdrożenie](DEPLOY_HOSTIDO.md). Poniżej historia.
+
+---
+
 # Publikacja GitHub — 29.10.2026
 
 Na wyraźne polecenie użytkownika wypchnięto feature/apk-integration-20261025 i połączono z main przez fast-forward. Zdalny main zawiera18bb0c4 (kontrakt i bezpieczny import offline), poprzednie etapy1–3 oraz ich historię. Bez force push, resetu i nadpisania cudzych commitów. Gałąź roboczą zachowano. Android również opublikowany w main swojego repo.

@@ -1,0 +1,14 @@
+import { cpSync,mkdirSync,writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { publicFixture,meta } from '../backendtests/public-fixture.mjs';
+const f=await publicFixture();const web={};
+const ok=r=>{if(r.status!==200)throw Error(JSON.stringify(r.error));return r.data;};
+for(const path of ['index.html','assets'])cpSync(join(f.repo,'dist',path),join(f.scratch,'dart',path),{recursive:true});
+web.csrf=ok(await f.request('public-session',undefined,web)).csrf_token;
+const a=ok(await f.request('player-create',{name:'Alicja',...meta()},web)),b=ok(await f.request('player-create',{name:'Bartosz',...meta()},web));
+const config={version:1,scoring:{start:501,in:'straight',out:'double'},match:{unit:'legs',target:2},legs_per_set:3,deciding:{win_by_two:false,extra_pairs:null},final_set:null,starters:{method:'fixed',player:1,leg_rotation:'alternate',set_rotation:'alternate',decider:'rotation'}};
+const g=ok(await f.request('game-create',{player1_id:a.id,player2_id:b.id,config,...meta()},web));
+const artifactDir=join(f.repo,'.tools/public-web-20261029');mkdirSync(artifactDir,{recursive:true});
+const info={url:`http://127.0.0.1:${f.ports[0]}/dart/`,second_url:`http://127.0.0.1:${f.ports[1]}/dart/`,scratch:f.scratch,game_id:g.game.id};
+writeFileSync(join(artifactDir,'preview.json'),JSON.stringify(info,null,2));console.log(JSON.stringify(info));
+const close=()=>{f.close();process.exit(0);};process.on('SIGINT',close);process.on('SIGTERM',close);process.stdin.on('data',d=>{if(String(d).trim()==='stop')close();});process.stdin.resume();

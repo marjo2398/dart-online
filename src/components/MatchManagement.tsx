@@ -7,6 +7,7 @@ export const decisionNames = { surrender: 'Poddanie', walkover: 'Walkower', inte
 export function actorLabel(raw?: string): string {
   try {
     const c = JSON.parse(raw ?? '{}');
+    if (c.role === 'public') return 'Publiczne WWW · osoba niepotwierdzona';
     if (c.role === 'admin') return `Administrator (wspólny PIN)${c.session_hash ? ` · sesja ${String(c.session_hash).slice(0,10)}` : ''}`;
     if (c.device_id) return `${c.declared_name || c.device_id} · rola ${c.role}`;
   } catch { /* Historical metadata may be absent. */ }
@@ -51,6 +52,6 @@ export default function MatchManagement({ snapshot, disabled, run, onRematch }: 
       <p>Kopia zasad: {g.format_description}. Bieżący mecz i historia pozostaną zapisane.</p>
       <button type="button" className="button button-primary" disabled={!permits('score') || (method === 'bull_off' && !bullKnown)} onClick={() => run(async () => { const next = await api.rematch(g.id,g.revision,swap,method,starter); onRematch(next); return snapshot; })}>Utwórz rewanż</button>
     </fieldset></details>
-    <details><summary>Historia decyzji i zatwierdzeń</summary><ul>{snapshot.result_decisions.map(d => <li key={d.id}>{d.created_at} · {d.action}: {d.reason}<small> · {actorLabel(d.actor_context)}</small></li>)}</ul><p>Wspólny PIN identyfikuje sesję administratora, nie osobę. Nazwa urządzenia jest deklaracją, a nie potwierdzoną tożsamością.</p></details>
+    <details><summary>Historia decyzji i zatwierdzeń</summary><ul>{snapshot.result_decisions.map(d => <li key={d.id}>{d.created_at} · {d.action}: {d.reason}<small> · {actorLabel(d.actor_context)}</small></li>)}</ul><p>Działania publicznego WWW nie potwierdzają tożsamości osoby. Nazwa urządzenia jest deklaracją; jego uprawnienia sprawdza serwer.</p></details>
   </section>;
 }

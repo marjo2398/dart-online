@@ -141,7 +141,7 @@ function mergeProfiles(PDO $pdo, array $b): array
 
 function assertProfileAdmin(array $actor): void
 {
-    if ($actor['role']!=='admin') { problem(403,'admin-required','Profile, analiza i eksport wymagają administratora WWW.'); }
+    if (!panelManager($actor)) { problem(403,'admin-required','Profile, analiza i eksport wymagają dostępu panelu lub uprawnionego APK.'); }
 }
 
 function saveEquipment(PDO $pdo, array $b): array

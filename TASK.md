@@ -1,3 +1,18 @@
+# Upgrade istniejącego WWW do APK1.2.0 — 29.10.2026
+
+- [x] Porównanie lokalnych implementacji/artefaktu APK: docs/WEB_UPGRADE.md. Bez agentów i ponownego audytu konkurencji.
+- [x] Publiczne wejście, techniczne CSRF/limity/audyt, stare cookies/UUID i zachowane role urządzeń.
+- [x] Nawigacja/konfiguracja, dwa wyniki i klawiatura, menu istniejących funkcji. Bez offline/PWA/kamery WWW.
+- [x] Jawne pochodzenie importu i archiwum tylko do odczytu; addytywna migracja8.
+- [x] Lokalne API/migracje, rzeczywisty klient Androida i klasy statystyk, przeglądarka/dwie karty, lint/build/screenshoty.
+- [x] Dokumentacja, paczka z kopią/rollbackiem i lokalny commit według PROJECT_STATE/manifestu.
+- [ ] Osobna poprawka Androida: LocalStatistics zalicza przerwanie/anulowanie bez zwycięzcy do lokalnych remisów. Nie zmieniano APK w tym zadaniu.
+- [ ] Wdrożenie i rzeczywiste próby telefonu/kamery oraz produkcji. Bez push/merge/deploy/instalacji. Etap4 organizacji pozostaje anulowany.
+
+Poniżej zachowane wcześniejsze zlecenia.
+
+---
+
 # Bieżące zadanie — współpraca z natywnym offline,29.10.2026
 
 - [x] Zachowano WWW etapy1–3 i istniejące ID/historię, etap4 anulowany.
