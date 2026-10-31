@@ -201,6 +201,7 @@ export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGam
     if (caught instanceof ApiError && (caught.status === 401 || caught.code.includes('csrf'))) { setFresh(false); setError('Nie udało się odnowić połączenia. Zapisy wstrzymane; odśwież panel bez logowania.'); }
   };
   useEffect(() => {
+    if (report || appSettings) return;
     let stopped = false;
     let failures = 0;
     let running = false;
@@ -234,7 +235,7 @@ export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGam
       window.removeEventListener('online', wake); document.removeEventListener('visibilitychange', wake);
       window.removeEventListener('dart-refresh',wake);
     };
-  }, [initialSnapshot.game.id,preferences.autoRefresh]);
+  }, [initialSnapshot.game.id,preferences.autoRefresh,report,appSettings]);
 
   const syncAfterConflict = async (caught: unknown) => {
     if (caught instanceof ApiError && caught.status === 409) {
