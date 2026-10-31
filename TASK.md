@@ -2,7 +2,7 @@
 
 Zakres autoryzowany przez użytkownika: naprawa ponownego parowania/kolejki, PIN4cyfry/5min, ustawienia, synchronizacja/podsumowanie/jakość, testy, dokumentacja, push/bezpieczny merge main, hosting WWW/API przed publikacją podpisanego APK, paczka WWW i dokumentów projektu. Bez instalacji telefonu, czyszczenia danych, agentów i etapu4. [Wydanie](docs/RELEASE_1_3_0.md) · [parowanie i ustawienia](docs/PAIRING_SETTINGS.md).
 
-Poniższe wpisy i dopiski pozostają bez zmian.
+Wykonano implementację, testy, buildy, fast-forward/push, hosting, smoke i publikację z pobraniem/SHA. Próba telefonu niewykonana; załączniki ChatGPT pozostają do ręcznej podmiany z przygotowanej paczki. Poniższe wpisy i dopiski pozostają bez zmian.
 
 ---
 

@@ -1,4 +1,6 @@
-# Aktualizacja1.3.0 / schema9 — procedura31.10.2026
+# Wdrożono1.3.0 / schema9 — 31.10.2026
+
+Wykonano poniższą procedurę i smoke HTTPS. Wynik i sumy: docs/RELEASE_1_3_0.md. Spójny backup i poprzedni kod: /home/host749284/dart-online-backups/release-1.3.0-20261031-01/. Wszystkie pierwotne wartości zachowane. Nie instalowano APK.
 
 Serwer przed publikacją nowego APK. Sprawdzone przed wdrożeniem: właściwy kanoniczny public_html/dart-lens-app/public, schema8, integrity=ok, OpenSSL. Nowa paczka node tools/package-release.mjs zawiera komplet9 modułów PHP (także pairing.php), index i hashowane JS/CSS, api/.htaccess i api/data/.htaccess:14 plików aplikacji. Nie kopiuj jedynie diffu backendu. PHP7.4+ wymaga PDO SQLite i OpenSSL; docelowe CLI8.4 potwierdzono.
 

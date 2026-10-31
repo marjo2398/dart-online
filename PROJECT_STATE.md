@@ -1,8 +1,12 @@
-# Wydanie1.3.0 — przygotowanie, 31.10.2026
+# Stan1.3.0 — produkcja i GitHub, 31.10.2026
 
-Kod na feature/access-settings-20261031: APK1.3.0/code15, WWW/API1.3.0/schema9. [Kontrakt i zachowanie](docs/PAIRING_SETTINGS.md), [wydanie](docs/RELEASE_1_3_0.md). Rozpoznano zasłanianie JoinPanel przez cached GamePanel i blokadę join przy pending; brak stałego bana serwera. Nowa tożsamość nie przejmuje zapisu starej, odzyskiwany jest wyłącznie jego wynik. Ustawienia są lokalne; automatyczny odczyt nigdy nie przekazuje właściciela meczu.
+WWW/API1.3.0/schema9 wdrożone na https://dartlens.host749284.xce.pl/ (kod b2c08848d60bc549d5b7824d19f226e9aa92d89c). APK1.3.0/code15 opublikowane z kodu61607e7c04571195d50179921ff56061727266df: [pobieranie prywatnego wydania](https://github.com/marjo2398/dart-party-/releases/tag/v1.3.0-internal), plik Dart-Lens-1.3.0-arm-internal.apk. Pobrane pliki mają zgodny SHA/rozmiar. Main i aktywne gałęzie zaktualizowane przez fast-forward; bieżący commit dokumentacji sprawdzaj w Git. [Pełny wynik, sumy i zakres](docs/RELEASE_1_3_0.md), [parowanie/ustawienia/checklista](docs/PAIRING_SETTINGS.md).
 
-Lokalnie:36 testów Androida PASS (w tym rzeczywiste HTTP do osobnej bazy), lint0 błędów/18 ostrzeżeń/1 hint; API/parowanie/migracja/klient WWW PASS;16 porównań metryk APK/PHP PASS. Build/lint WWW PASS. To stan przygotowania przed nowym wdrożeniem; wynik rzeczywistej produkcji zostanie wpisany po wykonaniu. Nie instalowano telefonu; hardware_verified=false. Cudzy TASK i audyt pozostają zachowane.
+Backup spójnej bazy i poprzedniego kodu: /home/host749284/dart-online-backups/release-1.3.0-20261031-01/. Migracja8→9 na kopii i produkcji PASS; wszystkie stare wartości8 graczy/5 meczów/48 wizyt/5 lotek/80 komend/80 audytów/4 urządzeń zachowane. Config/PIN, klucz i główny .htaccess bez zmian. HTTPS, stary stan, PIN/revoke/re-pair, odczyt starej komendy bez replay, korekta/checkout/drugi klient/raport/lock i ochrona plików PASS. Mecz testowy8 anulowany, profile9/10 archiwalne,4 testowe urządzenia cofnięte.
+
+36 testów modułów Androida i końcowe12 ścieżki HTTP PASS; lint0 błędów/18 ostrzeżeń/1 hint;16 porównań statystyk APK/PHP, celowane testy API i WWW build/lint PASS. Przeglądarka lokalna i produkcyjna sprawdzone, zrzuty desktop/telefon zachowane. Nie instalowano APK ani nie testowano fizycznej kamery: hardware_verified=false. Podmiana załączników ChatGPT niewykonana (brak mechanizmu), przygotowana paczka prawdziwych dokumentów z manifestem. Cudzy dopisek TASK i audyt pozostają zachowane i poza commitem. Zgoda dotyczy tego wydania, nie przyszłych wdrożeń.
+
+Poniżej historia; wcześniejsze stwierdzenia „niewdrożono” opisują poprzedni moment.
 
 ---
 

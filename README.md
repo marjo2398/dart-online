@@ -2,7 +2,7 @@
 
 Bieżący kod: APK1.3.0/code15 i WWW/API1.3.0/schema9. Jeden produkt: publiczne WWW bez logowania, natywna gra offline APK i własne uwierzytelnianie urządzeń online. Etap4 pozostaje anulowany. Nowe: ponowne parowanie bez utraty danych/kolejki, PIN4cyfry/5min, ustawienia lokalne, stany synchronizacji, podsumowanie i jakość statystyk. [Instrukcja](docs/PAIRING_SETTINGS.md) · [wydanie i dowody](docs/RELEASE_1_3_0.md).
 
-Status hostingu i publikacji opisuje aktualny PROJECT_STATE.md. Nie instalowano APK; próba fizycznego telefonu/kamery pozostaje niewykonana.
+WWW/API1.3.0/schema9 wdrożone; APK1.3.0/code15 opublikowane i pobrane z weryfikacją SHA. Aktualne wydanie: [APK (prywatny GitHub)](https://github.com/marjo2398/dart-party-/releases/tag/v1.3.0-internal) · [paczka WWW](https://github.com/marjo2398/dart-online/releases/tag/v1.3.0-internal). Wynik hostingu, backup i ograniczenia opisuje PROJECT_STATE.md. Nie instalowano APK; próba fizycznego telefonu/kamery pozostaje niewykonana.
 
 ---
 
