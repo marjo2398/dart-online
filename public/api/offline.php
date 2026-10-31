@@ -26,6 +26,10 @@ function authorizeNative(PDO $pdo,array $config,array $b):array {
    $old=sqlOne($pdo,'SELECT * FROM devices WHERE id=?',[$b['device_id']]);
    if(!$old||!is_string($b['previous_token'])||!hash_equals($old['token_hash'],hash('sha256',$b['previous_token'])))problem(409,'credential-mismatch','Nie można odtworzyć tożsamości oczekującej operacji.');
   }
+  if($old&&((bool)$old['revoked']||(int)$old['expires_at']<=$now)){
+   if(($_SERVER['HTTP_X_DART_RECOVERY']??'')!=='1')problem(409,'client-update-required','Odnowienie cofniętego dostępu z kolejką wymaga APK1.3.0. Zaktualizuj bez czyszczenia danych.');
+   $old=null;
+  }
   $id=$old['id']??uuid();$token=$old?$b['previous_token']:deviceToken($id,$join);
   // Renewal keeps the same token/actor. Losing this response cannot strand an uncertain score command.
   if($old)$pdo->prepare("UPDATE devices SET name=?,role='operator',game_id=NULL,expires_at=?,revoked=0,permissions_json=?,native_admin=1 WHERE id=?")->execute([trim($name),$now+43200,canonicalJson(MATCH_PERMISSIONS),$id]);

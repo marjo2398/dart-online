@@ -1,3 +1,11 @@
+# Bieżące zlecenie31.10.2026 — wspólne wydanie1.3.0
+
+Zakres autoryzowany przez użytkownika: naprawa ponownego parowania/kolejki, PIN4cyfry/5min, ustawienia, synchronizacja/podsumowanie/jakość, testy, dokumentacja, push/bezpieczny merge main, hosting WWW/API przed publikacją podpisanego APK, paczka WWW i dokumentów projektu. Bez instalacji telefonu, czyszczenia danych, agentów i etapu4. [Wydanie](docs/RELEASE_1_3_0.md) · [parowanie i ustawienia](docs/PAIRING_SETTINGS.md).
+
+Poniższe wpisy i dopiski pozostają bez zmian.
+
+---
+
 # Wdrożenie hostingu30.10.2026
 
 - [x] WWW/API1.2.1 publiczne na aktywnej domenie, backup/rollback i migracja3→8, zachowane wszystkie wcześniejsze dane i poświadczenia.

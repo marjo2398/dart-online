@@ -15,6 +15,7 @@ require_once __DIR__ . '/profiles.php';
 require_once __DIR__ . '/analysis.php';
 require_once __DIR__ . '/offline.php';
 require_once __DIR__ . '/public.php';
+require_once __DIR__ . '/pairing.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
@@ -74,7 +75,7 @@ function readJsonBody(): array
         problem(415, 'content-type-required', 'Wyślij dane jako application/json.');
     }
 
-    $bodyLimit = (($_GET['action'] ?? '') === 'local-game-import') ? 2 * 1024 * 1024 : API_MAX_BODY_BYTES;
+    $bodyLimit = (($_GET['action'] ?? '') === 'local-game-import') ? 2 * 1024 * 1024 : ((($_GET['action'] ?? '') === 'command-recover') ? 65536 : API_MAX_BODY_BYTES);
     $length = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
     if ($length > $bodyLimit) {
         problem(413, 'body-too-large', 'Przesłane dane są zbyt duże.');
@@ -89,7 +90,7 @@ function readJsonBody(): array
     }
 
     try {
-        $decoded = json_decode($raw, true, 32, JSON_THROW_ON_ERROR);
+        $decoded = json_decode($raw, true, (($_GET['action'] ?? '') === 'command-recover') ? 36 : 32, JSON_THROW_ON_ERROR);
     } catch (JsonException $exception) {
         problem(400, 'invalid-json', 'Nieprawidłowy format JSON.');
     }
@@ -252,7 +253,7 @@ function migrateDatabase(PDO $pdo): void
     if (tableExists($pdo, 'schema_meta') && (int) $pdo->query("SELECT value FROM schema_meta WHERE key = 'schema_version'")->fetchColumn() >= 3) {
         migrateFormats($pdo);
         migrateOperations($pdo);
-        migrateProfiles($pdo); migrateOffline($pdo); migratePublicAccess($pdo);
+        migrateProfiles($pdo); migrateOffline($pdo); migratePublicAccess($pdo); migratePairing($pdo);
         return;
     }
     transaction($pdo, static function () use ($pdo): void {
@@ -364,7 +365,7 @@ function migrateDatabase(PDO $pdo): void
     });
     migrateFormats($pdo);
     migrateOperations($pdo);
-    migrateProfiles($pdo); migrateOffline($pdo); migratePublicAccess($pdo);
+    migrateProfiles($pdo); migrateOffline($pdo); migratePublicAccess($pdo); migratePairing($pdo);
 }
 
 function migrateLegacyThrows(PDO $pdo): void
@@ -1044,7 +1045,7 @@ try {
     if (in_array($action,['profiles','profile','analysis','match-analysis','history-search','analysis-export'],true)) {
         requireMethod('GET'); assertProfileAdmin($actor); handleAnalysisRead($database,$action,$_GET);
     }
-    if ($action === 'sync-capabilities') { requireMethod('GET'); sendData(['rules_contract'=>LOCAL_RULES_CONTRACT,'formats'=>1,'operations'=>2,'schema'=>8]); }
+    if ($action === 'sync-capabilities') { requireMethod('GET'); sendData(['rules_contract'=>LOCAL_RULES_CONTRACT,'formats'=>1,'operations'=>2,'schema'=>9,'version'=>DART_RELEASE,'pairing'=>['digits'=>4,'ttl_seconds'=>300,'recovery'=>1],'apk_url'=>'https://github.com/marjo2398/dart-party-/releases/tag/v1.3.0-internal']); }
     if ($action === 'dashboard') {
         requireMethod('GET');
         $data = getDashboard($database);
@@ -1094,7 +1095,7 @@ try {
         $saved = sqlOne($database, 'SELECT game_id,result FROM commands WHERE actor=? AND command_id=?', [$actor['actor'],$commandId]);
         if ($saved && $saved['game_id'] !== null) { assertScope($actor,(int)$saved['game_id']); }
         if ($saved && $saved['game_id'] !== null && sqlOne($database,'SELECT id FROM games WHERE id=?',[$saved['game_id']])) { assertFormatClient(fetchGameRow($database,(int)$saved['game_id'])); }
-        $result=$saved ? json_decode($saved['result'],true,512,JSON_THROW_ON_ERROR) : null;
+        $result=$saved ? storedCommandResult($saved) : null;
         if ($result!==null) { assertResultClient($result); }
         sendData($saved ? ['status'=>'saved','result'=>$result] : ['status'=>'unknown']);
     }
@@ -1110,6 +1111,7 @@ try {
     requireMethod('POST');
     if (!$hasBearer) { requireCsrf($actor['role'] === 'public'); }
     $body = readJsonBody();
+    if ($action === 'command-recover') { sendData(transaction($database,static function()use($database,$body):array { return recoverDeviceCommand($database,authenticateActor($database),$body); })); }
     if ($action==='profile-merge-preview') { assertProfileAdmin($actor); $database->beginTransaction(); sendData(mergePreview($database,$body)); }
     if ($action==='history-preview') {
         if (!supportsOperations()) { problem(409,'client-update-required','Podgląd korekty wymaga obsługi operacji v2.'); }

@@ -13,6 +13,8 @@ const pendingKey = 'dart-online.pending-command.v3';
 let csrfToken: string | null = null;
 let inFlight = false;
 let writeState: WriteState = 'idle';
+let connection = {status:'Jeszcze nie sprawdzono API',lastConfirmed:0};
+export function connectionObservation(){return {...connection};}
 
 export function pendingCommand(): PendingCommand | null {
   const value = sessionStorage.getItem(pendingKey);
@@ -94,8 +96,10 @@ async function sendRequest<T>(action: string, options: RequestOptions = {}): Pro
       if (response.status === 401 && csrfToken === requestCsrfToken) csrfToken = null;
       throw new ApiError(response.status, error.code, error.message, error.details);
     }
+    connection={status:'API odpowiada',lastConfirmed:Date.now()};
     return payload.data as T;
   } catch (error) {
+    connection={...connection,status:error instanceof ApiError&&error.status>0?(error.status>=500?'Błąd serwera':'Serwer odrzucił żądanie — sprawdź komunikat'):'Brak odpowiedzi sieci'};
     if (error instanceof ApiError) throw error;
     throw new ApiError(0, 'network-error', 'Brak odpowiedzi API. Ostatni wynik może być nieaktualny.');
   } finally {
@@ -140,6 +144,7 @@ export async function retryPending(): Promise<unknown> {
 function remember(session: SessionState): SessionState { csrfToken = session.csrf_token; return session; }
 
 export const api = {
+  capabilities():Promise<{version?:string;schema:number;rules_contract:string;operations:number;apk_url?:string}>{return request('sync-capabilities');},
   profiles(q = '', state = 'all'): Promise<{players:Player[]}> { return request('profiles',{query:{q,state}}); },
   profile(id:number): Promise<ProfileDetail> { return request('profile',{query:{id}}); },
   saveProfile(player:Player): Promise<Player> { return mutate('profile-save',{...player,player_id:player.id}); },
@@ -213,8 +218,8 @@ export const api = {
     return mutate('observation-review', { game_id: gameId, observation_id: observationId, decision, ...(decision === 'accept' ? { field,...detail } : {}) }, revision);
   },
   devices(): Promise<{ devices: Device[] }> { return request('devices'); },
-  pairCode(role: Device['role'], gameId: number | null, hours: number, permissions?: MatchPermission[]): Promise<{ code: string; expires_at: number; role: string; game_id: number | null }> {
-    return mutate('device-code-create', { role, game_id: gameId, expires_hours: hours, ...(permissions ? { permissions } : {}) });
+  pairCode(role: Device['role'], gameId: number | null, hours: number, permissions?: MatchPermission[], pairingSession?:string): Promise<{ code: string; expires_at: number; server_time:number; role: string; game_id: number | null }> {
+    return mutate('device-code-create', { role, game_id: gameId, expires_hours: hours, ...(permissions ? { permissions } : {}),...(pairingSession?{pairing_session:pairingSession}:{}) });
   },
   revoke(deviceId: string): Promise<unknown> { return mutate('device-revoke', { device_id: deviceId }); },
 };

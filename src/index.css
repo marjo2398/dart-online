@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+input[type="checkbox"] { width: 1.15rem; height: 1.15rem; flex: 0 0 1.15rem; padding: 0; margin: 0; accent-color: var(--accent, #71ce88); }
+.check-option { display: flex; align-items: center; gap: .65rem; padding: .6rem 0; line-height: 1.4; cursor: pointer; }
+.device-panel .check-option input, .app-settings .check-option input { min-width: 1.15rem; max-width: 1.15rem; min-height: 1.15rem; }
+.app-settings { max-width: 880px; margin-inline: auto; }
+.app-settings h2 { margin-top: 1.6rem; }
+.app-settings > label { margin-block: .7rem; }
+.app-settings select { width:100%; padding:.6rem; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:.5rem; }
+.app-settings > .button { margin: .4rem .4rem .4rem 0; }
+.summary-comparison table { width: 100%; min-width: 0; table-layout: fixed; }
+.summary-comparison th, .summary-comparison td { overflow-wrap: anywhere; padding: .65rem .4rem; vertical-align: top; }
+.summary-comparison th:first-child { width: 40%; }
+.summary-comparison a { color: var(--accent, #71ce88); }
+.manual-refresh { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+
 .sync-status, .write-status { padding: .8rem 1rem; border: 1px solid var(--line); border-radius: 10px; }
 .sync-warning { color: var(--amber); }
 .write-status p { margin: .3rem 0; }
@@ -1594,3 +1608,7 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
   .resume-panel { flex-direction:column; align-items:flex-start; }
   .public-badge { display:none; }
 }
+
+.app-settings h1 { font-size:1.7rem; font-weight:750; }
+.app-settings h2 { font-size:1.15rem; font-weight:700; }
+.analysis-report { min-width:0; max-width:100%; }

@@ -1,3 +1,11 @@
+# Wydanie1.3.0 — przygotowanie, 31.10.2026
+
+Kod na feature/access-settings-20261031: APK1.3.0/code15, WWW/API1.3.0/schema9. [Kontrakt i zachowanie](docs/PAIRING_SETTINGS.md), [wydanie](docs/RELEASE_1_3_0.md). Rozpoznano zasłanianie JoinPanel przez cached GamePanel i blokadę join przy pending; brak stałego bana serwera. Nowa tożsamość nie przejmuje zapisu starej, odzyskiwany jest wyłącznie jego wynik. Ustawienia są lokalne; automatyczny odczyt nigdy nie przekazuje właściciela meczu.
+
+Lokalnie:36 testów Androida PASS (w tym rzeczywiste HTTP do osobnej bazy), lint0 błędów/18 ostrzeżeń/1 hint; API/parowanie/migracja/klient WWW PASS;16 porównań metryk APK/PHP PASS. Build/lint WWW PASS. To stan przygotowania przed nowym wdrożeniem; wynik rzeczywistej produkcji zostanie wpisany po wykonaniu. Nie instalowano telefonu; hardware_verified=false. Cudzy TASK i audyt pozostają zachowane.
+
+---
+
 # Produkcja WWW/API1.2.1 — 30.10.2026
 
 Wdrożono i sprawdzono https://dartlens.host749284.xce.pl/ w potwierdzonym katalogu /home/host749284/domains/dartlens.host749284.xce.pl/public_html/dart-lens-app/public. Publiczny start bez logowania działa. Wdrożony payload: bc5a0408e3148043e5f792523b3a1e2b986afac2; późniejsze poprawki narzędzi kopii/pakowania i dokumentacji nie zmieniają tych13 plików aplikacji.

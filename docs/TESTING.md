@@ -1,3 +1,11 @@
+# Weryfikacja zmian1.3.0
+
+Celowane sprawdzenia: backendtests/pairing.mjs (PIN/TTL/race/revoke/re-pair/proof/uprawnienia/limity), migration-pairing.mjs (8→9/powtórzenie/rollback), public-access.mjs, integration.mjs, web-client.mjs oraz apk-statistics.mjs (rzeczywiste skompilowane klasy Kotlin → import → PHP). Android: OnlineRepositoryTest i localplay.*, z DART_OFFLINE_SOURCE/DART_OFFLINE_PHP ustawionymi na izolowane lokalne API; build/lint release. AppOptionsTest i test restartu kolejki obejmują nowe ryzyka. Nie uruchamiamy audytu konkurencji ani całej regresji niezwiązanych modułów.
+
+Podgląd WWW z lokalnym PHP: ustawienia/parowanie/podsumowanie, szerokość desktopu i telefonu, pamiętanie preferencji i profile z raportu. Dowody lokalne .tools/release-1.3.0-20261031/. Końcowe liczby i rzeczywisty smoke produkcji w RELEASE_1_3_0.md po ich wykonaniu. Próby sprzętowe pozostają niewykonane; instrukcja telefonu w PAIRING_SETTINGS.md.
+
+---
+
 # Hosting30.10.2026 — rzeczywiście wykonane
 
 Publiczne HTTPS/API/schema8, zachowanie danych/config/klucza, blokady HTTP, zapis i role na oznaczonym meczu5 oraz render/odświeżenie starego meczu PASS. Telefonu nie testowano. Backup8 PASS (kanoniczna ścieżka i obie metody), ZIP po poprawce przetestowany rzeczywistym linuksowym ZipArchive/24 pliki/SHA. Raporty i screenshoty .tools/deploy-20261030/.

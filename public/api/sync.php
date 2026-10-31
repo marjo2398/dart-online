@@ -105,6 +105,7 @@ function publicDevice(array $row): array
     return ['id' => $row['id'], 'name' => $row['name'], 'role' => $row['role'],
         'game_id' => $row['game_id'] === null ? null : (int) $row['game_id'],
         'native_admin' => (bool)($row['native_admin'] ?? false), 'expires_at' => (int) $row['expires_at'], 'revoked' => (bool) $row['revoked'],
+        'access_status' => (bool)$row['revoked'] ? 'revoked' : ((int)$row['expires_at']<=time()?'expired':'authorized'),
         'permissions' => ($row['permissions_json'] ?? null)===null ? ($row['role']==='operator'?['score','correct_last']:[]) : json_decode($row['permissions_json'],true,32,JSON_THROW_ON_ERROR)];
 }
 
@@ -165,7 +166,9 @@ function authenticateActor(PDO $pdo): array
     if (isset($_SERVER['HTTP_AUTHORIZATION']) || isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
         if (!preg_match('/^Bearer ([A-Za-z0-9_-]{43})$/D', $header, $matches)) { problem(401,'invalid-device-token','Poświadczenie urządzenia jest nieprawidłowe.'); }
         $device = sqlOne($pdo, 'SELECT * FROM devices WHERE token_hash=?', [hash('sha256',$matches[1])]);
-        if (!$device || (bool) $device['revoked'] || (int) $device['expires_at'] <= time()) { problem(401,'device-expired','Dostęp urządzenia wygasł lub został odwołany. Sparuj je ponownie.'); }
+        if (!$device) { problem(401,'invalid-device-token','Poświadczenie urządzenia jest nieprawidłowe.'); }
+        if ((bool)$device['revoked']) { problem(401,'device-revoked','Dostęp został cofnięty. Połącz ponownie nowym kodem.'); }
+        if ((int)$device['expires_at']<=time()) { problem(401,'device-expired','Dostęp wygasł. Połącz ponownie nowym kodem.'); }
         if ($device['game_id'] !== null && !sqlOne($pdo,'SELECT id FROM games WHERE id=?',[$device['game_id']])) { problem(403,'game-access-ended','Przypisany mecz został usunięty.'); }
         return ['actor' => 'device:' . $device['id'], 'role' => ((bool)($device['native_admin'] ?? false)?'admin':$device['role']), 'device' => publicDevice($device)];
     }
@@ -229,7 +232,7 @@ function runCommand(PDO $pdo, string $action, array $body): array
         if (!$previous && $actor['role']==='public') { $previous=sqlOne($pdo,"SELECT * FROM commands WHERE actor='administrator' AND command_id=?",[$commandId]); }
         if ($previous) {
             if (!hash_equals($previous['payload_hash'],$hash)) { problem(409,'command-payload-conflict','Ten identyfikator komendy był użyty z innymi danymi.'); }
-            $result=json_decode($previous['result'],true,512,JSON_THROW_ON_ERROR);
+            $result=storedCommandResult($previous);
             assertResultClient($result);
             return $result;
         }
@@ -259,7 +262,7 @@ function runCommand(PDO $pdo, string $action, array $body): array
         ]);
         if ($gameId !== null && !in_array($action,['game-delete','game-rematch'],true)) { $result = fetchGameSnapshot($pdo,$gameId); }
         $pdo->prepare('INSERT INTO commands(actor,command_id,payload_hash,action,game_id,result) VALUES (?,?,?,?,?,?)')->execute([
-            $actor['actor'],$commandId,$hash,$action,$gameId,canonicalJson($result)
+            $actor['actor'],$commandId,$hash,$action,$gameId,canonicalJson($action==='device-code-create'?sealPairingResult($result):$result)
         ]);
         return $result;
     });
@@ -389,17 +392,7 @@ function correctVisit(PDO $pdo, array $body): array
 
 function createDeviceCode(PDO $pdo, array $body): array
 {
-    $role = $body['role'] ?? '';
-    if (!in_array($role,['operator','viewer','camera'],true)) { problem(422,'invalid-role','Nieprawidłowe uprawnienie.'); }
-    $permissions=grantPermissions($body,$role);
-    $gameId = ($body['game_id'] ?? null) === null ? null : requiredInt($body,'game_id',1,PHP_INT_MAX);
-    if ($gameId !== null) { fetchGameRow($pdo,$gameId); }
-    if ($role !== 'operator' && $gameId === null) { problem(422,'game-required','Widz i kamera wymagają przypisania do meczu.'); }
-    $hours = requiredInt($body,'expires_hours',1,168);
-    $code = strtoupper(bin2hex(random_bytes(6)));
-    $expires = time() + 600;
-    $pdo->prepare('INSERT INTO device_codes(code_hash,role,game_id,expires_at,device_lifetime,permissions_json) VALUES (?,?,?,?,?,?)')->execute([hash('sha256',$code),$role,$gameId,$expires,$hours*3600,canonicalJson($permissions)]);
-    return ['code'=>$code,'expires_at'=>$expires,'role'=>$role,'game_id'=>$gameId];
+    return issuePairingCode($pdo,$body);
 }
 
 function deviceSecret(): string
@@ -427,9 +420,9 @@ function deviceToken(string $id, string $joinId): string
 function joinDevice(PDO $pdo, array $body): array
 {
     $joinId = requiredUuid($body,'join_id');
-    $code = $body['code'] ?? null;
+    $code = isset($body['code'])&&is_string($body['code'])?strtoupper(trim($body['code'])):null;
     $name = $body['device_name'] ?? null;
-    if (!is_string($code) || !preg_match('/^[0-9A-F]{12}$/D',$code) || !is_string($name) || trim($name)==='' || strlen($name)>120 || preg_match('/[\x00-\x1F\x7F]/',$name)) { problem(422,'invalid-device-join','Sprawdź kod i nazwę urządzenia.'); }
+    if (!is_string($code) || !preg_match('/^(?:[0-9]{4}|[0-9A-F]{12})$/D',$code) || !is_string($name) || trim($name)==='' || strlen($name)>120 || preg_match('/[\x00-\x1F\x7F]/',$name)) { problem(422,'invalid-device-join','Wpisz czterocyfrowy PIN i nazwę urządzenia.'); }
     $hash = hash('sha256',canonicalJson($body));
     // Attempt accounting commits even when the following join transaction is rejected.
     transaction($pdo,static function () use ($pdo): void {
@@ -437,6 +430,7 @@ function joinDevice(PDO $pdo, array $body): array
         $pdo->prepare('DELETE FROM join_attempts WHERE attempted_at<?')->execute([$now-900]);
         $count = sqlOne($pdo,'SELECT COUNT(*) AS n FROM join_attempts WHERE ip_hash=?',[clientIpHash()]);
         if ((int)$count['n'] >= 30) { problem(429,'pairing-rate-limited','Zbyt wiele prób parowania. Spróbuj później.'); }
+        if ((int)sqlOne($pdo,'SELECT COUNT(*) n FROM join_attempts WHERE ip_hash=? AND attempted_at>?',[clientIpHash(),$now-60])['n']>=8) { problem(429,'pairing-rate-limited','Zbyt wiele prób. Odczekaj minutę.'); }
         $pdo->prepare('INSERT INTO join_attempts(ip_hash,attempted_at) VALUES (?,?)')->execute([clientIpHash(),$now]);
     });
     return transaction($pdo,static function () use ($pdo,$body,$joinId,$code,$name,$hash): array {
@@ -447,14 +441,16 @@ function joinDevice(PDO $pdo, array $body): array
             if ((bool)$old['revoked'] || (int)$old['expires_at']<=time()) { problem(401,'device-expired','Dostęp wygasł. Użyj nowego kodu.'); }
             return ['token'=>deviceToken($old['id'],$joinId),'device'=>publicDevice($old)];
         }
-        $grant = sqlOne($pdo,'SELECT * FROM device_codes WHERE code_hash=?',[hash('sha256',$code)]);
+        $short=strlen($code)===4;
+        $grant = $short ? sqlOne($pdo,'SELECT * FROM pairing_codes WHERE code_hash=? AND invalidated_at IS NULL AND used_by IS NULL',[pairingHash($code)]) : sqlOne($pdo,'SELECT * FROM device_codes WHERE code_hash=?',[hash('sha256',$code)]);
         if (!$grant || $grant['used_by']!==null || (int)$grant['expires_at']<=time()) { problem(401,'invalid-pairing-code','Kod jest nieważny, wykorzystany lub wygasł.'); }
         if ($grant['game_id'] !== null) { assertFormatClient(fetchGameRow($pdo,(int)$grant['game_id'])); }
         $id=uuid(); $token=deviceToken($id,$joinId);
         $pdo->prepare('INSERT INTO devices(id,name,role,game_id,token_hash,expires_at,join_id,join_hash,permissions_json) VALUES (?,?,?,?,?,?,?,?,?)')->execute([
             $id,trim($name),$grant['role'],$grant['game_id'],hash('sha256',$token),time()+(int)$grant['device_lifetime'],$joinId,$hash,$grant['permissions_json']
         ]);
-        $pdo->prepare('UPDATE device_codes SET used_by=? WHERE code_hash=?')->execute([$id,$grant['code_hash']]);
+        if($short)$pdo->prepare('UPDATE pairing_codes SET used_by=? WHERE id=? AND used_by IS NULL')->execute([$id,$grant['id']]);
+        else $pdo->prepare('UPDATE device_codes SET used_by=? WHERE code_hash=?')->execute([$id,$grant['code_hash']]);
         return ['token'=>$token,'device'=>publicDevice(sqlOne($pdo,'SELECT * FROM devices WHERE id=?',[$id]))];
     });
 }

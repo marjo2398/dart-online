@@ -1,3 +1,17 @@
+# Aktualizacja1.3.0 / schema9 — procedura31.10.2026
+
+Serwer przed publikacją nowego APK. Sprawdzone przed wdrożeniem: właściwy kanoniczny public_html/dart-lens-app/public, schema8, integrity=ok, OpenSSL. Nowa paczka node tools/package-release.mjs zawiera komplet9 modułów PHP (także pairing.php), index i hashowane JS/CSS, api/.htaccess i api/data/.htaccess:14 plików aplikacji. Nie kopiuj jedynie diffu backendu. PHP7.4+ wymaga PDO SQLite i OpenSSL; docelowe CLI8.4 potwierdzono.
+
+W oknie zapisu: zachowaj dokładny główny .htaccess z izolacją; krótki503, spójny backup SQLite3::backup i kopia kodu do nowego prywatnego katalogu poza public_html. Kopii aktywnej bazy nie zastępuje Copy-Item/cp samego pliku. Najpierw migracja8→9 na kopii i porównanie wszystkich starych kolumn/wierszy, potem instalacja assets/API i migracja produkcji, index.html ostatni, przywrócenie identycznego .htaccess. Config/PIN, device-secret, baza i wcześniejsze assets bez podmiany. Nie ruszaj TLS/globalnego PHP ani innych domen. Nowe tabele parowania są addytywne; historia/UUID/tokeny pozostają.
+
+Backup przechowuje kod, spójną bazę i konfigurację/sekret prywatnie. Automatyczny rollback w tym oknie zachowuje niedoszłą bazę/WAL/SHM osobno i przywraca spójną poprzednią parę kod+baza. Po otwarciu ruchu i nowych zapisach nie przywracaj dawnej bazy bez oceny utraty tych nowych danych. Zachowaj stare assets i no-cache HTML/API; poproś o odświeżenie starej karty. Nie ma service workera.
+
+Smoke: publiczny start/zasoby/API1.3.0 schema9, stare profile/mecze, PIN → role → revoke/re-pair → rozstrzygnięcie komendy bez replay → korekta/zakończenie → drugi klient/raport, config/SQLite/WAL/SHM/klucz/logi403/404. Wyłącznie oznaczone dane testowe: na koniec anulowanie/wyłączenie ze statystyk, archiwizacja profili i cofnięcie testowych urządzeń; audyt zachowany. Wynik, świeżą ścieżkę backupu i SHA wydania wpisujemy po wykonaniu w PROJECT_STATE i RELEASE_1_3_0.
+
+Poniżej zachowano poprzednie wydania i podstawową procedurę backupu; aktualną liczbę modułów/schemat definiuje sekcja powyżej.
+
+---
+
 # Wdrożono1.2.1 — 30.10.2026
 
 Aktualny wynik i dokładny backup: PROJECT_STATE.md. Backup CLI akceptuje kanoniczne dart-lens-app/public/api oraz historyczne dart/api, zachowując wszystkie pozostałe kontrole. Test-backup8 PASS. ZIP ma jawne separatory / i sprawdzony odczyt Linux; do następnego wdrożenia wybieraj Dart-Lens-WWW-1.2.1-portable-20261030.zip z Releases. Poniższa procedura nadal obowiązuje przy kolejnej aktualizacji.

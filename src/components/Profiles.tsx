@@ -4,10 +4,11 @@ import type { Equipment, MergePreview, Player, ProfileDetail } from '../types';
 import AnalysisLibrary, { dateLabel } from './Analysis';
 import { useWriteState } from './WriteStatus';
 
-export default function Profiles({refreshDashboard,onOpenGame,view='profiles'}:{refreshDashboard:()=>Promise<void>;onOpenGame:(id:number)=>void;view?:'profiles'|'history'}) {
+export default function Profiles({refreshDashboard,onOpenGame,view='profiles',initialSelected=null}:{refreshDashboard:()=>Promise<void>;onOpenGame:(id:number)=>void;view?:'profiles'|'history';initialSelected?:number|null}) {
   const [refreshKey,setRefreshKey]=useState(0);
   const [players,setPlayers]=useState<Player[]>([]);const [query,setQuery]=useState('');const [state,setState]=useState('all');const [name,setName]=useState('');const [guest,setGuest]=useState(false);const [selected,setSelected]=useState<number | null>(null);const [detail,setDetail]=useState<ProfileDetail | null>(null);const [draft,setDraft]=useState<Player | null>(null);const [error,setError]=useState('');const [busy,setBusy]=useState(false);const writes=useWriteState();const disabled=busy||writes==='unknown'||writes==='pending';
   const [target,setTarget]=useState('');const [reason,setReason]=useState('');const [merge,setMerge]=useState<MergePreview | null>(null);const [gear,setGear]=useState<Partial<Equipment>>({name:'',weight:null,notes:'',archived:0});
+  useEffect(()=>{if(initialSelected)setSelected(initialSelected);},[initialSelected]);
   const refresh=async()=>{setPlayers((await api.profiles()).players);setRefreshKey(v=>v+1);};
   useEffect(()=>{let live=true;api.profiles().then(d=>{if(live)setPlayers(d.players);}).catch(e=>{if(live)setError(messageFrom(e));});return()=>{live=false;};},[]);
   useEffect(()=>{let live=true;setDetail(null);setDraft(null);setMerge(null);setTarget('');setReason('');setGear({name:'',weight:null,notes:'',archived:0});if(selected)api.profile(selected).then(d=>{if(live){setDetail(d);setDraft(d.player);}}).catch(e=>{if(live)setError(messageFrom(e));});return()=>{live=false;};},[selected,refreshKey]);

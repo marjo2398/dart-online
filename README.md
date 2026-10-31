@@ -1,3 +1,11 @@
+# Wersja1.3.0 — parowanie i ustawienia aplikacji
+
+Bieżący kod: APK1.3.0/code15 i WWW/API1.3.0/schema9. Jeden produkt: publiczne WWW bez logowania, natywna gra offline APK i własne uwierzytelnianie urządzeń online. Etap4 pozostaje anulowany. Nowe: ponowne parowanie bez utraty danych/kolejki, PIN4cyfry/5min, ustawienia lokalne, stany synchronizacji, podsumowanie i jakość statystyk. [Instrukcja](docs/PAIRING_SETTINGS.md) · [wydanie i dowody](docs/RELEASE_1_3_0.md).
+
+Status hostingu i publikacji opisuje aktualny PROJECT_STATE.md. Nie instalowano APK; próba fizycznego telefonu/kamery pozostaje niewykonana.
+
+---
+
 # Produkcja WWW/API1.2.1 — 30.10.2026
 
 Wdrożono i sprawdzono https://dartlens.host749284.xce.pl/ w potwierdzonym katalogu /home/host749284/domains/dartlens.host749284.xce.pl/public_html/dart-lens-app/public. Publiczny start bez logowania działa. Wdrożony payload: bc5a0408e3148043e5f792523b3a1e2b986afac2; późniejsze poprawki narzędzi kopii/pakowania i dokumentacji nie zmieniają tych13 plików aplikacji.

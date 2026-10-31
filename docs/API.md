@@ -1,3 +1,19 @@
+# API1.3.0 / schema9 — 31.10.2026
+
+Aktualny kontrakt parowania i ustawień: [PAIRING_SETTINGS](PAIRING_SETTINGS.md). Nagłówki formats1/operations2, publiczny CSRF, uprawnienia, rewizje i idempotencja pozostają. `sync-capabilities` dodaje version1.3.0, schema9, pairing{digits:4,ttl_seconds:300,recovery:1}, apk_url.
+
+`device-code-create`: opcjonalny pairing_session UUID wystawcy; nowa odpowiedź code jako4cyfrowy string, pairing_id, expires_at/server_time(epoch sekundy), role/game_id. TTL300s. Nie przesyłaj PIN-u jako liczby. `device-join` nadal bez starego Bearera; obsługuje4cyfry i istniejący12-hex kod do jego terminu. Próby:8/min i30/15min/IP; generowanie12/min/IP lub wystawca. Transakcja atomowo zużywa grant. Aktywne tokeny nie zmieniają się.
+
+`device-self`/inne Bearer:401 device-revoked, device-expired lub invalid-device-token; żaden nie przechodzi do publicznego aktora. publicDevice dodaje access_status (authorized/expired/revoked), niezależny od obecności online. `app-authorize` z dowodem nieaktywnego tokenu wymaga X-Dart-Recovery:1 (stary klient409 client-update-required), tworzy nowy ID/token, nie reaktywuje starego.
+
+`POST command-recover` wymaga ważnego nowego Bearera, previous_device_id UUID, previous_token, action i command (dokładna oryginalna komenda z UUID/revision). Nie jest to replay ani nowa komenda punktująca. Pod blokadą ponownie weryfikuje nowy dostęp, dowód starego nieaktywnego dostępu i aktualne uprawnienia/zakres action+game_id. Zgodność payload_hash jest obowiązkowa. Zwraca status saved/not-saved, command_id, replayed:false, result (oryginalny wynik lub null). Brak uprawnień403 pozostawia kolejkę; konflikt UUID/treści409. Dowodu/tokenów nie logować i nie eksportować do diagnostyki. Koperta recovery ma limit64KiB (pozostałe zwykłe komendy nadal32KiB, import2MiB), aby zmieścić niezmienioną pełną komendę oraz dowód. Zwykłe ponowienie pod nowym aktorem nie jest bezpiecznym zamiennikiem tego endpointu.
+
+Migracja8→9: pairing_codes (HMAC PIN-u, wystawca, scope, TTL, zużycie) oraz pairing_generations (limity); istniejące device_codes/urządzenia/komendy/historyczne konfiguracje bez zmian. Nowe wyniki generowania w commands.result są AES-256-GCM; command-status i deduplikacja odszyfrowują odpowiedź. Prywatny device-secret i config są zachowane. Wymagane PDO SQLite i OpenSSL. Test rollbacku wstrzykuje błąd przy schema9 i sprawdza brak częściowych tabel.
+
+Poniższa dokumentacja szczegółowa opisuje wcześniejsze kontrakty bazowe; nowy PIN i cofnięcie dostępu definiuje ta sekcja.
+
+---
+
 # Aktualny dostęp WWW — 29.10.2026, WWW1.2.0/schema8
 
 GET public-session zwraca access=public, authenticated=false, csrf_token i expires_at bez uwierzytelnienia osoby. Publiczna rola, allowlista komend, jednokrotne odnowienie CSRF, limity i audyt: [PUBLIC_ACCESS](PUBLIC_ACCESS.md). Dawniejsze admin-only opisy poniżej zachowują ograniczenia urządzeń; publiczne WWW ma teraz jawne prawa panelu aplikacji, bez hostingu/bazy/sekretów.

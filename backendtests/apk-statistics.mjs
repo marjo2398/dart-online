@@ -23,7 +23,7 @@ try {
     const accepted=ok(await f.request('local-game-import',actual.payload,native));const report=ok(await f.request('match-analysis',undefined,web,{game_id:accepted.game_id}));
     for(let player=0;player<2;player++){
     const server=report.players[player].metrics,local=actual.locals[player];
-    for(const key of ['points','darts','average1','average3','first9','checkouts','wins','losses','draws','won_legs','lost_legs','won_sets','lost_sets','holds','breaks','busts','field_visits','partial_visits','known_source_visits','decider_wins','decider_losses']){
+    for(const key of ['points','darts','average1','average3','first9','checkouts','wins','losses','draws','won_legs','lost_legs','won_sets','lost_sets','holds','breaks','busts','field_visits','partial_visits','known_source_visits','decider_wins','decider_losses','visits','complete_visits','known_attempt_visits','opportunities','known_opportunities','attempts','attempt_wins','opportunity_wins','checkout_attempt_pct','checkout_visit_pct','first9_known','first9_eligible']){
       if(local[key]===null||server[key]===null)assert.equal(local[key],server[key],kind+':'+key);else assert(Math.abs(local[key]-server[key])<1e-9,kind+':'+key);
     }
     for(const key of ['sectors','leg_lengths'])assert.deepEqual(Object.entries(local[key]||{}).sort(),Object.entries(server[key]||{}).sort());

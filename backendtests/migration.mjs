@@ -38,13 +38,13 @@ file_put_contents(__DIR__.'/sequence.txt',$p->query("SELECT seq FROM sqlite_sequ
 execFileSync(php,[...args,join(scratch,'seed.php')]);
 const rollback=join(scratch,'rollback');mkdirSync(join(rollback,'data'),{recursive:true});
 cpSync(join(api,'data/dart-online.sqlite'),join(rollback,'data/dart-online.sqlite'));
-for(const file of ['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php','offline.php','public.php']) cpSync(join(repo,'public/api',file),join(rollback,file));
+for(const file of ['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php','offline.php','public.php','pairing.php']) cpSync(join(repo,'public/api',file),join(rollback,file));
 writeFileSync(join(scratch,'rollback.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/rollback/index.php';$p=openDatabase();
 $p->exec('CREATE TABLE templates(incompatible_column TEXT)');$failed=false;
 try{migrateDatabase($p);}catch(Throwable $e){$failed=true;}
 if(!$failed || columnExists($p,'games','config_json') || columnExists($p,'visits','opened_after') || $p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn()!=3 || $p->query('PRAGMA foreign_keys')->fetchColumn()!=1)throw new Exception('Migration did not roll back');echo 'rollback ok';`);
 assert.equal(execFileSync(php,[...args,join(scratch,'rollback.php')],{encoding:'utf8'}),'rollback ok');
-for(const file of ['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php','offline.php','public.php']) cpSync(join(repo,'public/api',file),join(api,file));
+for(const file of ['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php','offline.php','public.php','pairing.php']) cpSync(join(repo,'public/api',file),join(api,file));
 writeFileSync(join(scratch,'verify.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/api/index.php';${dump}
 $p=openDatabase();$before=json_decode(file_get_contents(__DIR__.'/before.json'),true,512,JSON_THROW_ON_ERROR);
 migrateDatabase($p);migrateDatabase($p);$after=dumpData($p);foreach(['players'=>['nickname','club','throwing_hand','notes','preferred_double','hints_enabled','archived','is_guest','merged_into','profile_revision'],'games'=>['import_mode','context_kind','venue','rule_in','rule_out','match_unit'],'visits'=>['recording_level','checkout_attempts','source'],'darts'=>['target','checkout_attempt']] as $table=>$cols){foreach($after[$table] as &$r){foreach($cols as $col){unset($r[$col]);}}unset($r);}

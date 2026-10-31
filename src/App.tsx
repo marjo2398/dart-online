@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, History, LoaderCircle, Play, Plus, RotateCcw, Target, Trash2, Users, Link as LinkIcon } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, History, LoaderCircle, Play, Plus, RotateCcw, Target, Trash2, Users, Settings2, Link as LinkIcon } from 'lucide-react';
 import { api, messageFrom } from './api';
 import { originLabel } from './presentation';
 import DartGame from './components/DartGame';
 import Devices from './components/Devices';
+import AppSettings from './components/AppSettings';
 import GameSetup from './components/GameSetup';
 import Profiles from './components/Profiles';
 import { phaseNames } from './components/MatchManagement';
 import WriteStatus, { useWriteState } from './components/WriteStatus';
 import type { DashboardData, GameSnapshot, GameSummary } from './types';
 
-type Page = 'home' | 'setup' | 'games' | 'profiles' | 'connections';
+type Page = 'home' | 'setup' | 'games' | 'profiles' | 'connections' | 'settings';
 const pages: { id: Page; label: string; icon: typeof Target }[] = [
   { id: 'home', label: 'Start', icon: Target }, { id: 'setup', label: 'Nowa gra', icon: Plus },
   { id: 'games', label: 'Wznów i historia', icon: History }, { id: 'profiles', label: 'Gracze i statystyki', icon: Users },
   { id: 'connections', label: 'Połączenia', icon: LinkIcon },
+  { id: 'settings', label: 'Ustawienia aplikacji', icon: Settings2 },
 ];
 function GameCard({ game, busy, onResume, onDelete }: { game: GameSummary; busy: boolean; onResume: (id: number) => Promise<void>; onDelete: (id: number) => Promise<void> }) {
   return <article className="game-card">
@@ -31,6 +33,7 @@ export default function App() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [currentGame, setCurrentGame] = useState<GameSnapshot | null>(null);
   const [page, setPage] = useState<Page>('home');
+  const [profile,setProfile]=useState<number|null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const writeState = useWriteState(); const busyRef = useRef(false);
@@ -45,6 +48,8 @@ export default function App() {
   const restoreLocation = async () => {
     const generation = ++navigationRef.current;
     const id = Number(new URLSearchParams(window.location.hash.slice(1)).get('game'));
+    const playerId=Number(new URLSearchParams(window.location.hash.slice(1)).get('profile'));
+    if(Number.isSafeInteger(playerId)&&playerId>0){setProfile(playerId);setPage('profiles');}
     if (Number.isSafeInteger(id) && id > 0) {
       const game = await api.game(id);
       if (generation === navigationRef.current) setCurrentGame(game);
@@ -90,12 +95,13 @@ export default function App() {
       {page === 'home' && <>
         <section className="home-intro"><p className="eyebrow">Gotowi przy tarczy?</p><h1>Zagrajmy.</h1><p>Wybierz zawodników i rozpocznij mecz. Wynik, historia i profile są wspólne dla wszystkich korzystających z panelu.</p><button className="button button-primary button-large" onClick={() => navigate('setup')}><Plus aria-hidden="true" />Nowa gra</button></section>
         {resume && <section className="panel resume-panel"><div><p className="eyebrow">Wróć do gry</p><h2>{resume.player1.name} — {resume.player2.name}</h2><p>{phaseNames[resume.operation_state]} · leg {resume.current_leg}</p></div><button className="button button-primary" disabled={busy} onClick={() => void openGame(resume.id)}><Play aria-hidden="true" />Wznów</button></section>}
-        <div className="home-tiles">{pages.slice(2).map(({ id, label, icon: Icon }) => <button className="panel home-tile" key={id} onClick={() => navigate(id)}><Icon aria-hidden="true" /><strong>{label}</strong><span>{id === 'games' ? `${dashboard.active_games.length} aktywnych meczów` : id === 'profiles' ? `${dashboard.players.length} aktywnych profili` : 'APK, kody i urządzenia'}</span></button>)}</div>
+        <div className="home-tiles">{pages.slice(2).map(({ id, label, icon: Icon }) => <button className="panel home-tile" key={id} onClick={() => navigate(id)}><Icon aria-hidden="true" /><strong>{label}</strong><span>{id === 'games' ? `${dashboard.active_games.length} aktywnych meczów` : id === 'profiles' ? `${dashboard.players.length} aktywnych profili` : id==='settings'?'Preferencje tej przeglądarki':'APK, kody i urządzenia'}</span></button>)}</div>
         <p className="muted">APK może prowadzić grę offline. W WWW widoczne są mecze serwera oraz jawnie zsynchronizowane dane telefonu.</p>
       </>}
       {page === 'setup' && <><button className="button button-ghost back-link" onClick={() => navigate('home')}><ArrowLeft />Start</button>{dashboard.players.length < 2 && <section className="panel"><p>Do nowej gry potrzebujesz dwóch aktywnych profili.</p><button className="button button-primary" onClick={() => navigate('profiles')}>Dodaj graczy</button></section>}<GameSetup players={dashboard.players} templates={dashboard.templates} busy={writesBlocked} run={locked} onCreated={openSnapshot} refresh={refreshDashboard} /></>}
       {page === 'games' && <><section className="panel"><div className="section-heading"><h2>Wznów grę</h2><span className="counter">{dashboard.active_games.length}</span></div>{dashboard.active_games.length ? <div className="game-list">{dashboard.active_games.map(game => <GameCard key={game.id} game={game} busy={writesBlocked} onResume={openGame} onDelete={deleteGame} />)}</div> : <p className="muted">Brak aktywnych meczów. Zakończone znajdziesz w historii poniżej.</p>}</section><Profiles view="history" refreshDashboard={refreshDashboard} onOpenGame={openGame} /></>}
-      {page === 'profiles' && <Profiles refreshDashboard={refreshDashboard} onOpenGame={openGame} />}
+      {page === 'profiles' && <Profiles initialSelected={profile} refreshDashboard={refreshDashboard} onOpenGame={openGame} />}
+      {page === 'settings' && <AppSettings/>}
       {page === 'connections' && <><section className="panel"><h1>Połączenia z APK</h1><p>Przeglądarka działa publicznie. APK i urządzenia nadal wymagają własnej autoryzacji lub kodu z odpowiednią rolą. Kamera wyłącznie proponuje wynik.</p><p>Udostępnij mecz na telefonie i potwierdź przekazanie prowadzenia serwerowi. Synchronizacja zakończonego archiwum udostępnia historię do odczytu.</p></section><Devices /></>}
     </div>
   </main>;

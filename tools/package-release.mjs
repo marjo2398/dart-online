@@ -8,14 +8,14 @@ const repo=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const git=(...args)=>execFileSync('git',args,{cwd:repo,encoding:'utf8'}).trim();
 assert.equal(git('status','--porcelain'),'','Commit and verify your changes before packaging.');
 const commit=git('rev-parse','HEAD'),version=JSON.parse(readFileSync(join(repo,'package.json'),'utf8')).version;
-const output=join(repo,'.tools/artifacts',`www-${version}-public-20261029-${commit.slice(0,7)}`);
+const output=join(repo,'.tools/artifacts',`www-${version}-access-20261031-${commit.slice(0,7)}`);
 assert(!existsSync(output),'Release directory already exists; keep the existing verified artifact.');
-const api=['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php','offline.php','public.php'];
+const api=['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php','offline.php','public.php','pairing.php'];
 const staticFiles=['index.html',...readdirSync(join(repo,'dist/assets')).map(p=>'assets/'+p)];
 const publicFiles=[...staticFiles,...api.map(p=>'api/'+p),'api/.htaccess','api/data/.htaccess'];
 const copy=(source,target)=>{mkdirSync(dirname(target),{recursive:true});copyFileSync(source,target);};
 for(const file of publicFiles)copy(join(repo,'dist',file),join(output,'public',file));
-for(const file of ['README.md','PROJECT_STATE.md','DEPLOY_HOSTIDO.md','docs/RELEASE_1_2_1.md','docs/PUBLIC_ACCESS.md','docs/WEB_UPGRADE.md','docs/API.md','docs/OFFLINE_SYNC.md','docs/METRICS.md','docs/TESTING.md'])copy(join(repo,file),join(output,file));
+for(const file of ['README.md','PROJECT_STATE.md','DEPLOY_HOSTIDO.md','docs/RELEASE_1_3_0.md','docs/PAIRING_SETTINGS.md','docs/PUBLIC_ACCESS.md','docs/WEB_UPGRADE.md','docs/API.md','docs/OFFLINE_SYNC.md','docs/METRICS.md','docs/TESTING.md'])copy(join(repo,file),join(output,file));
 copy(join(repo,'tools/backup.php'),join(output,'private-tools/backup.php'));
 function files(dir){return readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(join(dir,e.name)):[join(dir,e.name)]);}
 for(const file of files(join(output,'public'))){
@@ -27,8 +27,8 @@ for(const file of files(join(output,'public'))){
   if(name.endsWith('.js'))assert(!/LoginScreen|current-password|Zaloguj się PIN-em/.test(text),'Legacy login screen in frontend.');
 }
 assert(!existsSync(join(output,'public/.htaccess')),'Preserve the production root .htaccess.');
-const manifest={version,api_schema:8,metrics_version:1,source_commit:commit,source_branch:git('branch','--show-current'),base_commit:'188658a',created_at:new Date().toISOString(),production_deployed:false,hardware_verified:false,
-  changed_files:git('diff','--name-status','188658a',commit).split('\n'),preserve:['.htaccess','api/config.local.php','api/data/ (SQLite/WAL/SHM/device-secret.bin)'],
+const manifest={version,api_schema:9,metrics_version:1,source_commit:commit,source_branch:git('branch','--show-current'),base_commit:'90ba46e',created_at:new Date().toISOString(),production_deployed:false,hardware_verified:false,
+  changed_files:git('diff','--name-status','90ba46e',commit).split('\n'),preserve:['.htaccess','api/config.local.php','api/data/ (SQLite/WAL/SHM/device-secret.bin)'],
   files:files(output).map(path=>{const data=readFileSync(path);return {path:relative(output,path).replaceAll('\\','/'),bytes:data.length,sha256:createHash('sha256').update(data).digest('hex')};})};
 writeFileSync(join(output,'release-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
 // Run only this reviewed repository helper; do not change the user's persistent execution policy.

@@ -20,6 +20,8 @@ import ScoreEntry, { CheckoutPanel } from './ScoreEntry';
 import HistoryCorrection from './HistoryCorrection';
 import MatchMetadata from './MatchMetadata';
 import { MatchReport } from './Analysis';
+import AppSettings from './AppSettings';
+import { usePreferences } from '../preferences';
 import MatchManagement, { phaseNames, decisionNames } from './MatchManagement';
 import WriteStatus, { useWriteState } from './WriteStatus';
 import type { GameSnapshot, MatchPlayerState, Visit } from '../types';
@@ -136,15 +138,16 @@ function PlayerBoard({ player, active, visits, setsMode }: { player: MatchPlayer
 }
 
 export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGameProps) {
+  const preferences=usePreferences();const [appSettings,setAppSettings]=useState(false);const [lastRead,setLastRead]=useState(Date.now());
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [inputValue, setInputValue] = useState('');
   const [panel,setPanel] = useState<'actions'|'settings'|'history'|'connections'|'management'|null>(null);
-  const [requestedDarts,setRequestedDarts] = useState(false);
+  const [requestedDarts,setRequestedDarts] = useState(preferences.input==='darts');
   const draftRef = useRef('');
   useEffect(() => { draftRef.current = inputValue; }, [inputValue]);
-  const [entryMode, setEntryMode] = useState<'score' | 'remaining'>('score');
+  const [entryMode, setEntryMode] = useState<'score' | 'remaining'>(preferences.input==='remaining'?'remaining':'score');
   const [hintsEnabled, setHintsEnabled] = useState(false);
-  const [recording,setRecording]=useState<'quick'|'extended'|'detailed'>('quick');const [attempts,setAttempts]=useState('');const [report,setReport]=useState(false);
+  const [recording,setRecording]=useState<'quick'|'extended'|'detailed'>(preferences.recording);const [attempts,setAttempts]=useState('');const [report,setReport]=useState(false);
   const [remainingDialog, setRemainingDialog] = useState<{ value: number; revision: number } | null>(null);
   const [remainingDarts, setRemainingDarts] = useState(3);
   const [remainingDouble, setRemainingDouble] = useState(false);
@@ -155,7 +158,7 @@ export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGam
   const [refereeMessage, setRefereeMessage] = useState(
     initialSnapshot.game.status === 'finished' ? 'Mecz zakończony.' : initialSnapshot.game.is_paused ? 'Pauza.' : initialSnapshot.visits.length ? 'Wznowiono mecz.' : 'Game on!',
   );
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(preferences.voice);
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [fresh, setFresh] = useState(true);
@@ -191,6 +194,7 @@ export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGam
       setPendingVisit(null); setRemainingDialog(null); setInputValue('');
     }
     snapshotRef.current = next;
+    setLastRead(Date.now());
     setSnapshot(next);
   };
   const authError = (caught: unknown) => {
@@ -218,18 +222,19 @@ export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGam
         authError(caught);
       } finally {
         running = false;
-        if (!stopped) timer = setTimeout(poll, failures ? Math.min(15000, 1000 * 2 ** Math.min(failures, 4)) : document.hidden ? 5000 : 750);
+        if (!stopped && preferences.autoRefresh) timer = setTimeout(poll, failures ? Math.min(15000, 1000 * 2 ** Math.min(failures, 4)) : document.hidden ? 5000 : 750);
       }
     };
     const wake = () => { if (!running && !stopped) { clearTimeout(timer); void poll(); } };
     void poll();
-    window.addEventListener('online', wake);
-    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('dart-refresh',wake);
+    if(preferences.autoRefresh){window.addEventListener('online', wake);document.addEventListener('visibilitychange', wake);}
     return () => {
       stopped = true; clearTimeout(timer); controller?.abort(); generationRef.current++;
       window.removeEventListener('online', wake); document.removeEventListener('visibilitychange', wake);
+      window.removeEventListener('dart-refresh',wake);
     };
-  }, [initialSnapshot.game.id]);
+  }, [initialSnapshot.game.id,preferences.autoRefresh]);
 
   const syncAfterConflict = async (caught: unknown) => {
     if (caught instanceof ApiError && caught.status === 409) {
@@ -426,10 +431,11 @@ export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGam
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(refereeMessage);
     utterance.lang = 'pl-PL';
+    utterance.voice=window.speechSynthesis.getVoices().find(v=>v.voiceURI===preferences.voiceName)??null;
     utterance.rate = 1.03;
     window.speechSynthesis.speak(utterance);
     return () => window.speechSynthesis.cancel();
-  }, [refereeMessage, voiceEnabled]);
+  }, [refereeMessage, voiceEnabled,preferences.voiceName]);
 
   useEffect(() => {
     if (pendingVisit || remainingDialog) dialogRef.current?.focus();
@@ -458,7 +464,8 @@ export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGam
   const pendingProposals = snapshot.observations.filter(o=>o.status==='pending').length;
   const menuTitles = {actions:'Menu meczu',settings:'Ustawienia',history:'Historia i korekty',connections:'Połączenia, kamera i eksport',management:'Zakończenie i zatwierdzenie'};
   const chooseMode = (mode:'score'|'remaining'|'darts') => { setRequestedDarts(mode==='darts'); if(mode!=='darts')setEntryMode(mode); setInputValue(''); setPendingVisit(null);setRemainingDialog(null); };
-  if(report)return <main className="match-shell"><MatchReport id={snapshot.game.id} onBack={()=>setReport(false)}/></main>;
+  if(appSettings)return <main className="app-shell"><AppSettings onBack={()=>setAppSettings(false)}/></main>;
+  if(report)return <main className="match-shell"><MatchReport id={snapshot.game.id} onBack={()=>setReport(false)} onHistory={()=>void onExit()} onRematch={snapshot.game.origin?.read_only?undefined:()=>{setReport(false);setPanel('management');}}/></main>;
   return (
     <main className="match-shell compact-match">
       {remainingDialog && <div className="modal-backdrop" role="presentation"><section ref={dialogRef} tabIndex={-1} className="decision-modal" role="dialog" aria-modal="true" aria-label="Potwierdź stan pozostało" onKeyDown={e => { if (e.key === 'Escape' && !e.repeat && !busy) setRemainingDialog(null); if (e.key === 'Enter' && e.repeat) e.preventDefault(); }}>
@@ -535,6 +542,7 @@ export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGam
             <div className="section-heading"><h2>{menuTitles[panel]}</h2><button className="button button-ghost" onClick={()=>setPanel(null)}>Wróć do meczu</button></div>
             {panel!=='actions'&&<button className="button button-ghost" onClick={()=>setPanel('actions')}>Wszystkie działania</button>}
             {panel==='actions'&&<div className="match-menu-actions">
+              <button className="button button-secondary" onClick={()=>setAppSettings(true)}>Ustawienia aplikacji</button>
               <button className="button button-secondary" onClick={()=>setPanel('history')}>Historia i korekty</button>
               <button className="button button-secondary" onClick={()=>setReport(true)}>Statystyki i eksport</button>
               <button className="button button-secondary" onClick={()=>setPanel('settings')}>Ustawienia</button>
@@ -553,7 +561,8 @@ export default function DartGame({ initialSnapshot, onExit, onRematch }: DartGam
             {panel==='connections'&&<><DartControls snapshot={snapshot} disabled={writesDisabled} run={runCommand} view="connections" detailed={recording==='detailed'}/><Devices gameId={snapshot.game.id}/><MatchMetadata snapshot={snapshot} disabled={writesDisabled} run={runCommand}/><button className="button button-secondary" onClick={()=>setReport(true)}>Raport i eksport CSV / JSON</button><p>WWW nie uruchamia kamery. Udostępnianie lokalnej gry wykonujesz jawnie w APK; obraz pozostaje na telefonie.</p></>}
             {panel==='management'&&<MatchManagement snapshot={snapshot} disabled={writesDisabled} run={runCommand} onRematch={onRematch}/>}
           </section> : <section className="match-controls">
-            {snapshot.game.status==='finished'?<div className="finished-state"><Trophy aria-hidden="true"/><h1>{winner?'Wygrywa '+winner.name:snapshot.game.result==='draw'?'Remis':'Mecz zakończony'}</h1><p>{snapshot.game.decision?decisionNames[snapshot.game.decision.kind]:phaseNames[snapshot.game.operation_state]}</p><button className="button button-primary" onClick={()=>setPanel('management')}>Wynik i dalsze działania</button><button className="button button-secondary" onClick={()=>setReport(true)}>Statystyki i eksport</button><button className="button button-secondary" disabled={writesDisabled||!snapshot.can_undo} onClick={handleUndo}>Cofnij ostatni zapis</button></div>
+            {!preferences.autoRefresh&&<div className="manual-refresh"><small>Ostatni odczyt {new Date(lastRead).toLocaleTimeString('pl-PL')} · tryb ręczny</small><button className="button button-secondary" onClick={()=>window.dispatchEvent(new Event('dart-refresh'))}>Odśwież stan</button></div>}
+            {snapshot.game.status==='finished'?<div className="finished-state"><Trophy aria-hidden="true"/><h1>{winner?'Wygrywa '+winner.name:snapshot.game.result==='draw'?'Remis':'Mecz zakończony'}</h1><p>{snapshot.game.decision?decisionNames[snapshot.game.decision.kind]:phaseNames[snapshot.game.operation_state]}</p><button className="button button-primary" onClick={()=>setPanel('management')}>Wynik i dalsze działania</button><button className="button button-secondary" onClick={()=>setReport(true)}>Podsumowanie meczu</button><button className="button button-secondary" disabled={writesDisabled||!snapshot.can_undo} onClick={handleUndo}>Cofnij ostatni zapis</button></div>
             :snapshot.game.is_paused?<div className="finished-state"><h2>Pauza</h2><p>Wynik i częściowa wizyta są zachowane.</p><button className="button button-primary" disabled={writesDisabled} onClick={()=>runCommand(()=>api.matchOperation('game-resume',snapshot.game.id,snapshot.game.revision))}>Wznów grę</button></div>
             :snapshot.game.phase==='awaiting_starter'?<div className="finished-state"><h2>Kto wygrał bull-off?</h2>{snapshot.players.map(p=><button className="button button-primary" key={p.id} disabled={writesDisabled} onClick={()=>runCommand(()=>api.selectStarter(snapshot.game.id,p.id,snapshot.game.revision))}>{p.name}</button>)}</div>
             :<>

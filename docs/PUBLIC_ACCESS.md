@@ -1,3 +1,9 @@
+# Publiczne WWW1.3.0 — aktualny kontrakt
+
+Publiczny start, CSRF techniczny, UUID/revision i limity nadal obowiązują. Ustawienia przeglądarki są lokalne; PIN4cyfry/5min dotyczy wyłącznie wymiany na długi token urządzenia. Urządzenia zachowują role i zakresy. Revoke nie blokuje instalacji; nowe dołączenie nie reaktywuje starego tokenu. Niepewna komenda nie przechodzi na nowego aktora. [Szczegóły](PAIRING_SETTINGS.md) · [wynik wdrożenia](RELEASE_1_3_0.md). Poniższa sekcja to opis bazowy wdrażanego wcześniej publicznego modelu, nie bieżący status produkcji.
+
+---
+
 # Publiczne WWW — Dart Lens 1.2.0, 29.10.2026
 
 WWW i APK są jednym produktem. To aktualizacja istniejącego React/Vite + PHP/SQLite w `dart-online`, bez nowego panelu i bez etapu 4 organizacji rozgrywek. Produkcja nie została zmieniona.

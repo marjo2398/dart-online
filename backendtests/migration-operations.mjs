@@ -25,7 +25,7 @@ ${dump}file_put_contents(__DIR__.'/before.json',json_encode(dumpData($p),JSON_TH
 file_put_contents(__DIR__.'/sequence.json',json_encode($p->query('SELECT name,seq FROM sqlite_sequence ORDER BY name')->fetchAll(),JSON_THROW_ON_ERROR));`);
 execFileSync(php,[...args,join(scratch,'seed.php')]);
 const rollback=join(scratch,'rollback');mkdirSync(join(rollback,'data'),{recursive:true});cpSync(join(api,'data/dart-online.sqlite'),join(rollback,'data/dart-online.sqlite'));
-for(const dest of [api,rollback])for(const name of ['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php','offline.php','public.php'])cpSync(join(repo,'public/api',name),join(dest,name));
+for(const dest of [api,rollback])for(const name of ['index.php','sync.php','formats.php','operations.php','profiles.php','analysis.php','offline.php','public.php','pairing.php'])cpSync(join(repo,'public/api',name),join(dest,name));
 writeFileSync(join(scratch,'rollback.php'),`<?php define('DART_API_LIBRARY_ONLY',true);require __DIR__.'/rollback/index.php';$p=openDatabase();$p->exec('CREATE TABLE record_versions(collision TEXT)');$failed=false;try{migrateDatabase($p);}catch(Throwable $e){$failed=true;}
 if(!$failed || columnExists($p,'games','confirmed_at') || columnExists($p,'visits','active') || $p->query("SELECT value FROM schema_meta WHERE key='schema_version'")->fetchColumn()!=4 || $p->query('PRAGMA foreign_keys')->fetchColumn()!=1)throw new Exception('Partial failed migration');echo 'rollback ok';`);
 assert.equal(execFileSync(php,[...args,join(scratch,'rollback.php')],{encoding:'utf8'}),'rollback ok');
