@@ -1,3 +1,9 @@
+# Kalibracja i źródła projektu — 1.11.2026
+
+Zadanie: APK1.3.1/code16, precyzyjna edycja zdjęcia kalibracji, celowane testy, build, publikacja APK i rzeczywistych dokumentów GitHub. WWW/API1.3.0/schema9 bez deploy. Brak instalacji telefonu i trwałej podmiany załączników ChatGPT. Stan: docs/RELEASE_1_3_1.md. Poniższe wpisy zachowane.
+
+---
+
 # Bieżące zlecenie31.10.2026 — wspólne wydanie1.3.0
 
 Zakres autoryzowany przez użytkownika: naprawa ponownego parowania/kolejki, PIN4cyfry/5min, ustawienia, synchronizacja/podsumowanie/jakość, testy, dokumentacja, push/bezpieczny merge main, hosting WWW/API przed publikacją podpisanego APK, paczka WWW i dokumentów projektu. Bez instalacji telefonu, czyszczenia danych, agentów i etapu4. [Wydanie](docs/RELEASE_1_3_0.md) · [parowanie i ustawienia](docs/PAIRING_SETTINGS.md).
