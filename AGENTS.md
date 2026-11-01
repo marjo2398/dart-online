@@ -1,3 +1,9 @@
+# Stan bieżący — kalibracja APK1.3.1/code16, 1.11.2026
+
+Przeczytaj README.md, PROJECT_STATE.md, TASK.md i docs/RELEASE_1_3_1.md. Instrukcja edytora w dart-lens/docs/CALIBRATION.md. WWW/API1.3.0/schema9 pozostaje z wdrożenia31.10; brak zmian runtime i nowego deploy w zadaniu kalibracji. Próby telefonu i screenshot nowego APK niewykonane, hardware_verified=false. Wydanie APK/dokumentów prywatne; starsze wersje poniżej są historią. Dotychczasowe zasady ochrony danych i granice zgody pozostają w mocy.
+
+---
+
 # Dart Lens WWW/API
 
 Czytaj README.md, PROJECT_STATE.md, TASK.md i docs/RELEASE_1_3_0.md; instrukcje nadrzędnego workspace również obowiązują. To istniejące React/Vite + PHP/SQLite, jeden produkt z APK. Nie przywracaj MySQL ani /dart/; etap4 anulowany.

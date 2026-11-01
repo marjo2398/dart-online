@@ -1,5 +1,7 @@
 # Aktualny stan — 1.11.2026
 
+Finalny build/lint APK i21 celowanych testów PASS. APK z kodu `bc234981ee4f84e3837f4894279ddc0f9ad87b12`, rozmiar i SHA w docs/RELEASE_1_3_1.md. Bieżące artefakty obejmują APK, manifesty, SHA256SUMS i ZIP rzeczywistych dokumentów. Prób telefonu nie wykonano.
+
 APK1.3.1/code16: precyzyjny edytor kalibracji zdjęcia. WWW/API pozostaje1.3.0/schema9 z wdrożenia31.10; w tym zadaniu backendu nie przebudowywano ani nie wdrażano. [APK i paczka dokumentów (prywatne wydanie GitHub)](https://github.com/marjo2398/dart-party-/releases/tag/v1.3.1-internal). Punkty startowe: PROJECT_STATE.md, docs/RELEASE_1_3_1.md, instrukcja kalibracji w dart-lens/docs/CALIBRATION.md i dotychczasowe PAIRING_SETTINGS/ONLINE_QUICK_START. Weryfikacja lokalna opisana w dokumencie wydania; hardware_verified=false, bez instalacji i próby dotykowej telefonu. Aktualny status publikacji wskazuje wydanie GitHub i manifesty; nie jest to nowe wdrożenie WWW.
 
 Poniżej historia wcześniejszych wydań — nie aktualne zlecenia.
