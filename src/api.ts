@@ -1,6 +1,12 @@
 import type { DashboardData, Device, GameSnapshot, Player, SessionState, MatchConfig, MatchTemplate, HistoryChange, CorrectionPreview, CheckoutHints, MatchPermission } from './types';
 import type { ProfileDetail, MergePreview, Equipment, AnalysisPackage, AnalysisFilters, HistoryPage, ScoringDetail } from './types';
 
+export function trustedApkUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const match = /^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)\/view(?:\?usp=drivesdk)?$/.exec(value);
+  return match && match[0] === value ? value : null;
+}
+
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly details?: Record<string, unknown>) {
     super(message);

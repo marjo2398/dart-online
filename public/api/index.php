@@ -1045,7 +1045,7 @@ try {
     if (in_array($action,['profiles','profile','analysis','match-analysis','history-search','analysis-export'],true)) {
         requireMethod('GET'); assertProfileAdmin($actor); handleAnalysisRead($database,$action,$_GET);
     }
-    if ($action === 'sync-capabilities') { requireMethod('GET'); sendData(['rules_contract'=>LOCAL_RULES_CONTRACT,'formats'=>1,'operations'=>2,'schema'=>9,'version'=>DART_RELEASE,'pairing'=>['digits'=>4,'ttl_seconds'=>300,'recovery'=>1],'apk_url'=>'https://github.com/marjo2398/dart-party-/releases/tag/v1.3.0-internal']); }
+    if ($action === 'sync-capabilities') { requireMethod('GET'); sendData(['rules_contract'=>LOCAL_RULES_CONTRACT,'formats'=>1,'operations'=>2,'schema'=>9,'version'=>DART_RELEASE,'pairing'=>['digits'=>4,'ttl_seconds'=>300,'recovery'=>1],'apk_url'=>'https://drive.google.com/file/d/1cm15GqSPISJvoBNqOskej0uWZsng1NMl/view?usp=drivesdk']); }
     if ($action === 'dashboard') {
         requireMethod('GET');
         $data = getDashboard($database);

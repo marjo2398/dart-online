@@ -1,14 +1,27 @@
-import { useEffect, useState } from 'react';
-import { api, connectionObservation, messageFrom, pendingCommand } from '../api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, connectionObservation, messageFrom, pendingCommand, trustedApkUrl } from '../api';
 import { APP_VERSION, savePreferences, usePreferences } from '../preferences';
 import WriteStatus from './WriteStatus';
 
 export default function AppSettings({onBack}:{onBack?:()=>void}){
   const prefs=usePreferences();const [error,setError]=useState('');const [status,setStatus]=useState(connectionObservation().status);const [last,setLast]=useState(()=>connectionObservation().lastConfirmed?new Date(connectionObservation().lastConfirmed).toLocaleString('pl-PL'):'');
-  const [cap,setCap]=useState<Awaited<ReturnType<typeof api.capabilities>>|null>(null);const [voices,setVoices]=useState<SpeechSynthesisVoice[]>([]);const [busy,setBusy]=useState(false);
+  const [cap,setCap]=useState<Awaited<ReturnType<typeof api.capabilities>>|null>(null);const [voices,setVoices]=useState<SpeechSynthesisVoice[]>([]);const [busy,setBusy]=useState(true);
+  const latestCheck=useRef(0);
+  const apkUrl=trustedApkUrl(cap?.apk_url);
   const update=(next:Partial<typeof prefs>)=>{try{savePreferences({...prefs,...next});setError('');}catch{setError('Nie zapisano preferencji w tej przeglądarce.');}};
   useEffect(()=>{if(!('speechSynthesis' in window))return;const read=()=>setVoices(window.speechSynthesis.getVoices().filter(v=>v.lang.startsWith('pl')));read();window.speechSynthesis.addEventListener('voiceschanged',read);return()=>window.speechSynthesis.removeEventListener('voiceschanged',read);},[]);
-  const check=async()=>{if(busy)return;setBusy(true);try{await api.session();const info=await api.capabilities();setCap(info);setStatus('API odpowiada · dostęp WWW publiczny');setLast(new Date().toLocaleString('pl-PL'));setError('');}catch(e){setStatus('Brak potwierdzenia połączenia');setError(messageFrom(e));}finally{setBusy(false);}};
+  const check=useCallback(async ()=>{
+    const request=++latestCheck.current;
+    setBusy(true);
+    try {
+      await api.session();
+      const info=await api.capabilities();
+      if(request===latestCheck.current){setCap(info);setStatus('API odpowiada · dostęp WWW publiczny');setLast(new Date().toLocaleString('pl-PL'));setError('');}
+    } catch(e){
+      if(request===latestCheck.current){setCap(null);setStatus('Brak potwierdzenia połączenia');setError(messageFrom(e));}
+    } finally { if(request===latestCheck.current)setBusy(false); }
+  },[]);
+  useEffect(()=>{void check();return ()=>{latestCheck.current++;};},[check]);
   const testVoice=()=>{if(!('speechSynthesis' in window))return;const u=new SpeechSynthesisUtterance('Dart Lens. Pozostało sto osiemdziesiąt.');u.lang='pl-PL';u.voice=voices.find(v=>v.voiceURI===prefs.voiceName)??null;window.speechSynthesis.cancel();window.speechSynthesis.speak(u);};
   const diagnostic=()=>{const p=pendingCommand();const blob=new Blob([JSON.stringify({app:APP_VERSION,server:window.location.origin+window.location.pathname,access:'public-web',status,last_confirmed:last||null,api:cap,queue:p?{action:p.action,id:p.body.command_id,created_at:p.created_at}:null},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='Dart-Lens-diagnostyka-bez-sekretow.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
   return <section className="panel app-settings">{onBack&&<button className="button button-ghost" onClick={onBack}>Wróć do meczu</button>}<h1>Ustawienia aplikacji</h1><p>Preferencje tej przeglądarki. Zapis nie zmienia wspólnych profili, reguł meczu ani ustawień pozostałych osób.</p>{error&&<p role="alert">{error}</p>}
@@ -22,6 +35,9 @@ export default function AppSettings({onBack}:{onBack?:()=>void}){
     <details><summary>Zaawansowane: adres serwera</summary><p>{window.location.origin+window.location.pathname}</p><p>WWW jest związane z adresem otwartej strony. Zmiana serwera wymaga wejścia na jego stronę; kolejka tej karty pozostaje przy obecnym API.</p></details>
     <h2>Analiza i prezentacja</h2><label>Domyślny okres<select value={prefs.days} onChange={e=>update({days:Number(e.target.value)})}>{[0,7,30,90,365].map(n=><option value={n} key={n}>{n?`Ostatnie ${n} dni`:'Cała historia'}</option>)}</select></label><p>Źródło WWW: wspólna historia serwera. Niezsynchronizowane dane telefonu są dostępne wyłącznie w APK.</p>
     <label className="check-option"><input type="checkbox" checked={prefs.rememberFilters} onChange={e=>update({rememberFilters:e.target.checked})}/>Zapamiętuj filtry analizy w tej przeglądarce</label><label className="check-option"><input type="checkbox" checked={prefs.definitions} onChange={e=>update({definitions:e.target.checked})}/>Domyślnie rozwijaj definicje statystyk</label>
-    <h2>Dane i diagnostyka</h2><p>WWW {APP_VERSION} · API {cap?.version??'jeszcze nie sprawdzono'} · schema {cap?.schema??'—'}. {cap&&(cap.rules_contract==='dart-lens-x01/1'&&cap.operations===2?'Zgodny kontrakt gry.':'Serwer wymaga aktualizacji kontraktu.')}</p><p>Eksport danych znajdziesz w raporcie meczu i analizie aktywnych filtrów.</p><a className="button button-secondary" href={cap?.apk_url?.startsWith('https://github.com/marjo2398/dart-party-/releases/')?cap.apk_url:'https://github.com/marjo2398/dart-party-/releases/tag/v1.3.0-internal'} target="_blank" rel="noreferrer">Aktualne APK · prywatne wydanie GitHub</a><button className="button button-secondary" onClick={diagnostic}>Pobierz diagnostykę bez sekretów</button>
+    <h2>Dane i diagnostyka</h2><p>WWW {APP_VERSION} · API {cap?.version??'jeszcze nie sprawdzono'} · schema {cap?.schema??'—'}. {cap&&(cap.rules_contract==='dart-lens-x01/1'&&cap.operations===2?'Zgodny kontrakt gry.':'Serwer wymaga aktualizacji kontraktu.')}</p><p>Eksport danych znajdziesz w raporcie meczu i analizie aktywnych filtrów.</p>
+    {apkUrl ? <a className="button button-secondary" href={apkUrl} target="_blank" rel="noreferrer">Pobierz aktualne APK z Dysku Google</a>
+      : <p role="status">{busy?'Sprawdzanie odnośnika do APK…':'Odnośnik do aktualnego APK jest niedostępny.'}</p>}
+    <button className="button button-secondary" onClick={diagnostic}>Pobierz diagnostykę bez sekretów</button>
   </section>;
 }

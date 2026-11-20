@@ -1,3 +1,15 @@
+# Dart Lens 1.3.6/code21 · 20.11.2026
+
+Android z poprawkami importu i korekty checkoutu jest dostępny dla każdej osoby mającej link. [Pobierz APK](https://drive.google.com/file/d/1cm15GqSPISJvoBNqOskej0uWZsng1NMl/view?usp=drivesdk). Panel ma przygotowaną aktualizację przycisku „Aktualne APK”. Wdrożenie WWW/API 1.3.0/schema9 na Hostido oczekuje na dostęp SSH.
+
+---
+
+# Lokalna poprawka panelu — 20.11.2026
+
+Ustawienia pobierają odnośnik do wydanego APK 1.3.5 z odpowiedzi sync-capabilities. Przy braku prawidłowego adresu pliku z Dysku Google panel wyświetla komunikat. Kontrola typów, build WWW i próby przycisku w Chrome przeszły. Zmiana oczekuje na wdrożenie frontendu i API 1.3.0/schema9.
+
+---
+
 # Aktualny stan — 1.11.2026
 
 Finalny build/lint APK i21 celowanych testów PASS. APK z kodu `bc234981ee4f84e3837f4894279ddc0f9ad87b12`, rozmiar i SHA w docs/RELEASE_1_3_1.md. Bieżące artefakty obejmują APK, manifesty, SHA256SUMS i ZIP rzeczywistych dokumentów. Prób telefonu nie wykonano.
